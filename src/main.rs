@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use rand::{Rng};
+use rand::Rng;
 
 #[derive(Debug,Clone)]
 struct Task{
