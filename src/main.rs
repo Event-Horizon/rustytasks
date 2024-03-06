@@ -76,16 +76,24 @@ fn main() {
 }
 
 fn create_mocklist(num:i32)->Vec<Task>{
-    //for loop for amount of mocks
-    let vector=&mut vec![];
-    let mut mock_task:Task;
-    let mut mock_data:String;
-    for n in 1..=num {
-        mock_data = String::from("Mock Task ");
-        mock_data.push_str(n.to_string().as_str());
-        mock_task=Task::new(false,mock_data);
-        vector.push(mock_task);
-    }
-    let result=vector.clone();
-    result
+    // brute force for loop for amount of mocks
+    // let vector=&mut vec![];
+    // let mut mock_task:Task;
+    // let mut mock_data:String;
+    // for n in 1..=num {
+    //     mock_data = String::from("Mock Task ");
+    //     mock_data.push_str(n.to_string().as_str());
+    //     mock_task=Task::new(false,mock_data);
+    //     vector.push(mock_task);
+    // }
+    // let result=vector.clone();
+    // result
+
+    //functional for loop
+    (1..=num)
+        .map(|i| {
+            let data = format!("Mock Task {}", i);
+            Task::new(false, data)
+        })
+        .collect::<Vec<_>>() 
 }
