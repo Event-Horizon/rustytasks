@@ -2,8 +2,7 @@ use itertools::Itertools;
 use itertools::join;
 use rand::Rng;
 use std::fmt;
-use std::{collections::VecDeque, io::{self, BufRead}};
-use regex::Regex;
+use std::collections::VecDeque;
 
 #[derive(Debug,Clone)]
 struct Task{
@@ -65,7 +64,6 @@ impl TaskList{
     }
 
     fn print_pretty(&self){
-        //`Enumerate<std::slice::Iter<'_, Task>>`
         let indent=4;
         let spacing = " ".repeat(indent);
         let result=self.tasks
@@ -73,8 +71,7 @@ impl TaskList{
         .enumerate()
         .map(|(i,v)| String::from(i.to_string()+": "+v.to_string().as_str()))
         .join((String::from("\r\n")+&spacing).as_str());
-        // let re = Regex::new(r"[()]").unwrap();
-        // let result=re.replace_all(pretty_string.as_str(),"");
+
         println!("{spacing}Tasks: \r\n{spacing}{}",result)
     }
 }
@@ -138,7 +135,7 @@ fn command_help(command:Option<String>)->Result<String,&'static str>{
     }
     _=>"-1"
     };
-    if(help_info == "-1"){
+    if help_info == "-1" {
         return Err("Invalid help command.");
     }
     Ok(help_info.to_string())
@@ -148,13 +145,13 @@ fn command_list(global_tasks:&mut TaskList){
 }
 fn command_add(global_tasks:&mut TaskList,d:String){
     let c=false;
-    global_tasks.add_task(Task::new(c, d));
+    global_tasks.add_task(Task::new(c, d)).unwrap_or_default();
 }
 fn command_remove(global_tasks:&mut TaskList,index:usize){
-    global_tasks.delete_task(index);
+    global_tasks.delete_task(index).unwrap_or_default();
 }
 fn command_complete(global_tasks:&mut TaskList,index:usize){
-    global_tasks.toggle_completed_task(index);
+    global_tasks.toggle_completed_task(index).unwrap_or_default();
 }
 fn command_exit(){
     std::process::exit(0);
@@ -169,17 +166,17 @@ fn run_firstrun(){
 }
 
 fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
-    let state=TASKCOM::Help;
+    let _state=TASKCOM::Help;
     if first_run {
         run_firstrun();
     }
     let input = read_string().trim().to_string();
-    let lowerInput = input.clone().to_lowercase();
+    let lower_input = input.clone().to_lowercase();
 
-    let mut commandQueue:VecDeque<_> = lowerInput.split(" ").collect();
-    let mut command= commandQueue.pop_front();
-    let mut queueClone=join(commandQueue.clone()," ");
-    let mut arguments:Vec<_> = queueClone.split(",").collect();
+    let mut command_queue:VecDeque<_> = lower_input.split(" ").collect();
+    let command= command_queue.pop_front();
+    let queue_clone=join(command_queue.clone()," ");
+    let arguments:Vec<_> = queue_clone.split(",").collect();
 
     let request=match command.unwrap(){
         "help"=>TASKCOM::Help,
@@ -208,10 +205,10 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
             let mut invalid_remove=false;
             let index = match arguments[0].parse::<usize>() {
                 Ok(index)=>index,
-                Err(e)=>{invalid_remove=true;0}
+                Err(_e)=>{invalid_remove=true;0}
             };
 
-            if(!invalid_remove){
+            if !invalid_remove{
                 command_remove(global_tasks,index);
                 command_list(global_tasks);
             }else{
@@ -222,9 +219,9 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
             let mut invalid_complete=false;
             let index=match arguments[0].parse::<usize>() {
                 Ok(index)=>index,
-                Err(e)=>{invalid_complete=true;0}
+                Err(_e)=>{invalid_complete=true;0}
             };
-            if(!invalid_complete){
+            if !invalid_complete{
                 command_complete(global_tasks,index);
                 command_list(global_tasks);
             }else{
@@ -284,7 +281,7 @@ fn create_mocklist(num:i32)->Vec<Task>{
 
 fn main() {
     run_mocktrial();
-    let mut global_tasklist=&mut TaskList{
+    let global_tasklist=&mut TaskList{
         tasks:Vec::new()
     };
     run_tasklist(true,global_tasklist);
