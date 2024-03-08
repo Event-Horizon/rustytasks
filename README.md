@@ -39,8 +39,9 @@ list
 Result:
 ```
 
-    Tasks:
+    Tasks:[
     0: Task{ completed: false, data: "this is a test!" }
+    ]
 
 ```
 
@@ -54,8 +55,9 @@ add "This is a test!"
 Result:
 ```
 
-    Tasks:
+    Tasks:[
     0: Task{ completed: false, data: "this is a test!" }
+    ]
 
 ```
 
@@ -69,8 +71,9 @@ remove 0
 Result:
 ```
 
-    Tasks:
+    Tasks: [
 
+    ]
 
 ```
 
@@ -84,8 +87,9 @@ complete 0
 Result:
 ```
 
-    Tasks:
+    Tasks:[
     0: Task{ completed: true, data: "this is a test!" }
+    ]
 
 ```
 

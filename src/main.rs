@@ -72,7 +72,7 @@ impl TaskList{
         .map(|(i,v)| String::from(i.to_string()+": "+v.to_string().as_str()))
         .join((String::from("\r\n")+&spacing).as_str());
 
-        println!("{spacing}Tasks: \r\n{spacing}{}",result)
+        println!("{spacing}Tasks: [\r\n{spacing}{}\r\n{spacing}]",result)
     }
 }
 
