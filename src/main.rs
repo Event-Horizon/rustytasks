@@ -74,11 +74,52 @@ fn read_string() -> String {
     input
 }
 
-fn command_help()->String{
-    let help_info=r#"    Please use these commands to interact:
+fn command_help(command:Option<String>)->Result<String,&'static str>{
 
-    Help, List, Add, Remove, Complete, Exit"#;
-    help_info.to_string()
+    // if let Some(com) = command.clone() {
+    //     println!("HELP command was:{}",com.len());
+    // } 
+    
+    let help_info = match command.as_deref() {
+        Some("list")=>{r#"
+    The LIST command will LIST out your current tasks.
+    "#}
+        Some("add")=>{r#"
+    The ADD command will ADD a task when used like so:
+
+    add false,"This is a test!"
+    "#}
+        Some("remove")=>{r#"
+    The REMOVE command will REMOVE a task when used like so:
+
+    remove 0
+
+    This removes task 0 from your tasklist.
+    "#}
+        Some("complete")=>{r#"
+    The COMPLETE command will COMPLETE a task when used like so:
+
+    complete 0
+
+    This completes task 0 from your tasklist.
+    "#},
+    Some("exit")=>{r#"
+    The EXIT command EXITS the CLI Rusty Tasks process.
+    "#},
+    Some("")|None=>{
+        r#"    Please use these commands to interact:
+
+    HELP, LIST, ADD, REMOVE, COMPLETE, EXIT
+    
+    For further help type 'help command' like 'help add' no quotes.
+"#
+    }
+    _=>"-1"
+    };
+    if(help_info == "-1"){
+        return Err("Invalid help command.");
+    }
+    Ok(help_info.to_string())
 }
 fn command_list(global_tasks:&mut TaskList){
     global_tasks.print();
@@ -96,14 +137,18 @@ fn command_exit(){
     std::process::exit(0);
 }
 
-fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
-    let state=TASKCOM::Help;
-    if first_run {
-        println!(r#"
+fn run_firstrun(){
+    println!(r#"
     Welcome to RUSTY TASKS!
     =======================
 
-{}"#,command_help());
+{}"#,command_help(None).unwrap());
+}
+
+fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
+    let state=TASKCOM::Help;
+    if first_run {
+        run_firstrun();
     }
     let input = read_string().trim().to_string();
     let lowerInput = input.clone().to_lowercase();
@@ -124,26 +169,31 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
     };
     match request{
         TASKCOM::Help=>{
-            let helpstring=command_help();
-            println!("{}",helpstring);
+            println!("{}",command_help(Some(arguments[0]
+                .trim()
+                .to_string()))
+                .unwrap_or(String::from("Invalid help command.")));
         },
         TASKCOM::List=>{
             command_list(global_tasks);
         },
         TASKCOM::Add=>{
-            command_add(global_tasks,arguments[0].trim().parse().unwrap(),arguments[1].to_string());
+            command_add(global_tasks,arguments[0].trim().parse().unwrap(),arguments[1].to_string());            
+            command_list(global_tasks);
         },
         TASKCOM::Remove=>{
             command_remove(global_tasks,arguments[0].parse::<usize>().unwrap());
+            command_list(global_tasks);
         },
         TASKCOM::Complete=>{
             command_complete(global_tasks,arguments[0].parse::<usize>().unwrap());
+            command_list(global_tasks);
         },
         TASKCOM::Exit=>{
             command_exit();
         }
     }
-    println!("Command was: {:?}",command);//debug
+    //println!("Command was: {:?}",command);//debug
     run_tasklist(false,global_tasks);
 }
 
