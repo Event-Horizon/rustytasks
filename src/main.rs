@@ -1,12 +1,20 @@
 use itertools::Itertools;
 use itertools::join;
 use rand::Rng;
+use std::fmt;
 use std::{collections::VecDeque, io::{self, BufRead}};
+use regex::Regex;
 
 #[derive(Debug,Clone)]
 struct Task{
     completed: bool,
     data: String
+}
+
+impl fmt::Display for Task{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,"Task{{ completed: {}, data: {} }}",self.completed,self.data)
+    }
 }
 
 impl Task{
@@ -53,7 +61,21 @@ impl TaskList{
     }
 
     fn print(&self){
-        println!("    Tasks: \r\n {:?}",self.tasks.iter().format("\r\n "))
+        println!("    Tasks: \r\n {:?}",self.tasks.iter().enumerate().format("\r\n "))
+    }
+
+    fn print_pretty(&self){
+        //`Enumerate<std::slice::Iter<'_, Task>>`
+        let indent=4;
+        let spacing = " ".repeat(indent);
+        let result=self.tasks
+        .iter()
+        .enumerate()
+        .map(|(i,v)| String::from(i.to_string()+": "+v.to_string().as_str()))
+        .join((String::from("\r\n")+&spacing).as_str());
+        // let re = Regex::new(r"[()]").unwrap();
+        // let result=re.replace_all(pretty_string.as_str(),"");
+        println!("{spacing}Tasks: \r\n{spacing}{}",result)
     }
 }
 
@@ -87,7 +109,7 @@ fn command_help(command:Option<String>)->Result<String,&'static str>{
         Some("add")=>{r#"
     The ADD command will ADD a task when used like so:
 
-    add false,"This is a test!"
+    add "This is a test!"
     "#}
         Some("remove")=>{r#"
     The REMOVE command will REMOVE a task when used like so:
@@ -122,9 +144,10 @@ fn command_help(command:Option<String>)->Result<String,&'static str>{
     Ok(help_info.to_string())
 }
 fn command_list(global_tasks:&mut TaskList){
-    global_tasks.print();
+    global_tasks.print_pretty();
 }
-fn command_add(global_tasks:&mut TaskList,c:bool,d:String){
+fn command_add(global_tasks:&mut TaskList,d:String){
+    let c=false;
     global_tasks.add_task(Task::new(c, d));
 }
 fn command_remove(global_tasks:&mut TaskList,index:usize){
@@ -178,16 +201,35 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
             command_list(global_tasks);
         },
         TASKCOM::Add=>{
-            command_add(global_tasks,arguments[0].trim().parse().unwrap(),arguments[1].to_string());            
+            command_add(global_tasks,arguments[0].to_string());            
             command_list(global_tasks);
         },
         TASKCOM::Remove=>{
-            command_remove(global_tasks,arguments[0].parse::<usize>().unwrap());
-            command_list(global_tasks);
+            let mut invalid_remove=false;
+            let index = match arguments[0].parse::<usize>() {
+                Ok(index)=>index,
+                Err(e)=>{invalid_remove=true;0}
+            };
+
+            if(!invalid_remove){
+                command_remove(global_tasks,index);
+                command_list(global_tasks);
+            }else{
+                println!("Invalid REMOVE command please try again.");
+            }
         },
         TASKCOM::Complete=>{
-            command_complete(global_tasks,arguments[0].parse::<usize>().unwrap());
-            command_list(global_tasks);
+            let mut invalid_complete=false;
+            let index=match arguments[0].parse::<usize>() {
+                Ok(index)=>index,
+                Err(e)=>{invalid_complete=true;0}
+            };
+            if(!invalid_complete){
+                command_complete(global_tasks,index);
+                command_list(global_tasks);
+            }else{
+                println!("Invalid COMPLETE command please try again.");
+            }
         },
         TASKCOM::Exit=>{
             command_exit();
