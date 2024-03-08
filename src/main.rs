@@ -1,6 +1,7 @@
 use itertools::Itertools;
+use itertools::join;
 use rand::Rng;
-use std::io::{self, BufRead};
+use std::{collections::VecDeque, io::{self, BufRead}};
 
 #[derive(Debug,Clone)]
 struct Task{
@@ -52,7 +53,7 @@ impl TaskList{
     }
 
     fn print(&self){
-        println!("Tasks: \r\n {:?}",self.tasks.iter().format("\r\n "))
+        println!("    Tasks: \r\n {:?}",self.tasks.iter().format("\r\n "))
     }
 }
 
@@ -73,31 +74,46 @@ fn read_string() -> String {
     input
 }
 
-fn command_help(){}
-fn command_list(){}
-fn command_add(){}
-fn command_remove(){}
-fn command_complete(){}
+fn command_help()->String{
+    let help_info=r#"    Please use these commands to interact:
+
+    Help, List, Add, Remove, Complete, Exit"#;
+    help_info.to_string()
+}
+fn command_list(global_tasks:&mut TaskList){
+    global_tasks.print();
+}
+fn command_add(global_tasks:&mut TaskList,c:bool,d:String){
+    global_tasks.add_task(Task::new(c, d));
+}
+fn command_remove(global_tasks:&mut TaskList,index:usize){
+    global_tasks.delete_task(index);
+}
+fn command_complete(global_tasks:&mut TaskList,index:usize){
+    global_tasks.toggle_completed_task(index);
+}
 fn command_exit(){
     std::process::exit(0);
 }
 
-fn run_tasklist(first_run:bool){
+fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
     let state=TASKCOM::Help;
     if first_run {
         println!(r#"
     Welcome to RUSTY TASKS!
     =======================
 
-    Please use these commands to interact:
-
-    Help, List, Add, Remove, Complete, Exit
-    "#);
+{}"#,command_help());
     }
     let input = read_string().trim().to_string();
     let lowerInput = input.clone().to_lowercase();
-    let formattedInput = lowerInput.as_str();
-    let request=match formattedInput{
+
+    let mut commandQueue:VecDeque<_> = lowerInput.split(" ").collect();
+    let mut command= commandQueue.pop_front();
+    let mut queueClone=join(commandQueue.clone()," ");
+    let mut arguments:Vec<_> = queueClone.split(",").collect();
+
+    let request=match command.unwrap(){
         "help"=>TASKCOM::Help,
         "list"=>TASKCOM::List,
         "add"=>TASKCOM::Add,
@@ -108,26 +124,27 @@ fn run_tasklist(first_run:bool){
     };
     match request{
         TASKCOM::Help=>{
-            command_help();
+            let helpstring=command_help();
+            println!("{}",helpstring);
         },
         TASKCOM::List=>{
-            command_list();
+            command_list(global_tasks);
         },
         TASKCOM::Add=>{
-            command_add();
+            command_add(global_tasks,arguments[0].trim().parse().unwrap(),arguments[1].to_string());
         },
         TASKCOM::Remove=>{
-            command_remove();
+            command_remove(global_tasks,arguments[0].parse::<usize>().unwrap());
         },
         TASKCOM::Complete=>{
-            command_complete();
+            command_complete(global_tasks,arguments[0].parse::<usize>().unwrap());
         },
         TASKCOM::Exit=>{
             command_exit();
         }
     }
-    println!("Command was: {:?}",input);
-    run_tasklist(false);
+    println!("Command was: {:?}",command);//debug
+    run_tasklist(false,global_tasks);
 }
 
 fn run_mocktrial(){
@@ -175,5 +192,8 @@ fn create_mocklist(num:i32)->Vec<Task>{
 
 fn main() {
     run_mocktrial();
-    run_tasklist(true);
+    let mut global_tasklist=&mut TaskList{
+        tasks:Vec::new()
+    };
+    run_tasklist(true,global_tasklist);
 }
