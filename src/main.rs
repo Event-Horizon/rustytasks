@@ -1,62 +1,64 @@
 use itertools::Itertools;
-use itertools::join;
 use rand::Rng;
 use std::fmt;
-use std::collections::VecDeque;
 
+/// Represents a task with a completion status and associated data.
 #[derive(Debug,Clone)]
 struct Task{
     completed: bool,
     data: String
 }
 
+/// Implements a default Display formatter for Tasks
 impl fmt::Display for Task{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f,"Task{{ completed: {}, data: {} }}",self.completed,self.data)
     }
 }
 
+/// Implements a constructor for Tasks
 impl Task{
     fn new(c:bool,d:String)->Task{
-        let result=Task{
+        Task{
             completed:c,
             data:d
-        };
-        result
+        }
     }
 }
 
+/// Represents a list of Tasks
 #[derive(Debug)]
 struct TaskList {
     tasks: Vec<Task>,
 }
 
+/// Implements Task management methods for TaskList
 impl TaskList{
-    fn add_task(&mut self,mytask:Task)->Result<&'static str,&'static str>{         
+    fn add_task(&mut self,mytask:Task)->Result<(),String>{         
         let veclen=self.tasks.len();      
         self.tasks.push(mytask);
         if veclen >= self.tasks.len() {
-            return Err("Push failed.")
+            return Err("Push failed.".to_string())
         }
-        Ok("Task added.")
+        Ok(())
     }
 
-    fn delete_task(&mut self,index:usize)->Result<&'static str,&'static str>{
+    fn delete_task(&mut self,index:usize)->Result<(),String>{
         if index < self.tasks.len() {
             self.tasks.remove(index);
-            return Ok("Task Deleted.")
+            return Ok(())
         }
-        Err("Invalid index.")
+        Err("Invalid index.".to_string())
     }
 
-    fn toggle_completed_task(&mut self,index:usize)->Result<&'static str,&'static str>{
+    fn toggle_completed_task(&mut self,index:usize)->Result<(),String>{
         if index < self.tasks.len() {
     
             self.tasks[index].completed = !self.tasks[index].completed;
         
-            return Ok("Task Completed.")
+            return Ok(())
         }
-        Err("Invalid index.")
+        Err("Invalid index.".to_string())
     }
 
     fn print(&self){
@@ -76,16 +78,19 @@ impl TaskList{
     }
 }
 
+/// Represents Task Commands user is able to input.
 enum TASKCOM{
     Help,
     List,
     Add,
     Remove,
     Complete,
-    Exit
+    Exit,
+    Unknown
 }
 
-fn read_string() -> String {
+/// Reads input line from Standard Input and returns it.
+fn read_input_line() -> String {
     let mut input = String::new();
     std::io::stdin()
         .read_line(&mut input)
@@ -93,7 +98,8 @@ fn read_string() -> String {
     input
 }
 
-fn command_help(command:Option<String>)->Result<String,&'static str>{
+/// Returns help information for commands
+fn command_help(command:Option<String>)->Result<String,String>{
 
     // if let Some(com) = command.clone() {
     //     println!("HELP command was:{}",com.len());
@@ -136,106 +142,150 @@ fn command_help(command:Option<String>)->Result<String,&'static str>{
     _=>"-1"
     };
     if help_info == "-1" {
-        return Err("Invalid help command.");
+        return Err("Invalid HELP command please try again.".to_string());
     }
     Ok(help_info.to_string())
 }
+
+/// Prints all Tasks in TaskList
 fn command_list(global_tasks:&mut TaskList){
     global_tasks.print_pretty();
 }
-fn command_add(global_tasks:&mut TaskList,d:String){
-    let c=false;
-    global_tasks.add_task(Task::new(c, d)).unwrap_or_default();
+
+/// Adds new Task to TaskList
+fn command_add(global_tasks:&mut TaskList,d:String)->Result<(),String>{
+    global_tasks.add_task(Task::new(false, d))?;
+    Ok(())
 }
-fn command_remove(global_tasks:&mut TaskList,index:usize){
-    global_tasks.delete_task(index).unwrap_or_default();
+
+/// Removes a Task in TaskList by Index
+fn command_remove(global_tasks:&mut TaskList,index:usize)->Result<(),String>{
+    match global_tasks.delete_task(index){
+        Ok(_)=>{Ok(())},
+        Err(_)=>{Err("Invalid REMOVE command please try again.".to_string())}
+    }
 }
-fn command_complete(global_tasks:&mut TaskList,index:usize){
-    global_tasks.toggle_completed_task(index).unwrap_or_default();
+
+/// Completes a Task in TaskList by Index
+fn command_complete(global_tasks:&mut TaskList,index:usize)->Result<(),String>{
+    match global_tasks.toggle_completed_task(index) {
+        Ok(_)=>{Ok(())},
+        Err(_)=>{Err("Invalid COMPLETE command please try again.".to_string())}
+    }
 }
+
+/// Ends the process and exits to terminal
 fn command_exit(){
     std::process::exit(0);
 }
 
-fn run_firstrun(){
+/// On first run shows welcome message
+fn show_welcome_msg(){
+    let help = match command_help(None){
+        Ok(text)=>{text},
+        Err(error)=>{println!("There was an error with the HELP command: {}",error);return;}
+    };
     println!(r#"
     Welcome to RUSTY TASKS!
     =======================
 
-{}"#,command_help(None).unwrap());
+{}"#,help);
 }
 
-fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
-    let _state=TASKCOM::Help;
-    if first_run {
-        run_firstrun();
-    }
-    let input = read_string().trim().to_string();
-    let lower_input = input.clone().to_lowercase();
+/// Parses user input into command and arguments
+fn parse_input(input: &str) -> (String, Vec<String>){
+    let mut parts = input.splitn(2, char::is_whitespace);
 
-    let mut command_queue:VecDeque<_> = lower_input.split(" ").collect();
-    let command= command_queue.pop_front();
-    let queue_clone=join(command_queue.clone()," ");
-    let arguments:Vec<_> = queue_clone.split(",").collect();
+    // Parse command
+    let command = parts.next().unwrap_or("").to_lowercase();
 
-    let request=match command.unwrap(){
-        "help"=>TASKCOM::Help,
-        "list"=>TASKCOM::List,
-        "add"=>TASKCOM::Add,
-        "remove"=>TASKCOM::Remove,
-        "complete"=>TASKCOM::Complete,
-        "exit"=>TASKCOM::Exit,
-        &_ => TASKCOM::Help
-    };
-    match request{
+    // Parse arguments
+    let arguments:Vec<String> = match parts.next() {
+        Some(args)=>args.split(",").map(|arg| arg.trim().to_string()).collect(),
+        None=>vec![String::from("")]// requires string inside or else there will be no "arguments[0]"
+    };    
+
+    (command, arguments)
+}
+
+/// Converts command struct into function calls to run command
+fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskList)->Result<(),String>{
+    match command{
         TASKCOM::Help=>{
-            println!("{}",command_help(Some(arguments[0]
-                .trim()
-                .to_string()))
-                .unwrap_or(String::from("Invalid help command.")));
+            let help = match command_help(arguments.get(0).map(|s| s.trim().to_string())){
+                Ok(text)=>{text},
+                Err(error)=>{error}
+            };
+            println!("{}",help);
+            Ok(())
         },
-        TASKCOM::List=>{
-            command_list(global_tasks);
-        },
+        TASKCOM::List=>Ok(command_list(global_tasks)),
         TASKCOM::Add=>{
-            command_add(global_tasks,arguments[0].to_string());            
+            command_add(global_tasks,arguments[0].to_string())?;
             command_list(global_tasks);
+            Ok(())
         },
         TASKCOM::Remove=>{
-            let mut invalid_remove=false;
-            let index = match arguments[0].parse::<usize>() {
-                Ok(index)=>index,
-                Err(_e)=>{invalid_remove=true;0}
+            match arguments[0].parse::<usize>() {
+                Ok(index)=>{
+                    command_remove(global_tasks,index)?;
+                    command_list(global_tasks);
+                    return Ok(())
+                },
+                Err(_e)=>{
+                    return Err("Invalid REMOVE command please try again.".to_string())
+                }
             };
-
-            if !invalid_remove{
-                command_remove(global_tasks,index);
-                command_list(global_tasks);
-            }else{
-                println!("Invalid REMOVE command please try again.");
-            }
         },
         TASKCOM::Complete=>{
-            let mut invalid_complete=false;
-            let index=match arguments[0].parse::<usize>() {
-                Ok(index)=>index,
-                Err(_e)=>{invalid_complete=true;0}
+            match arguments[0].parse::<usize>() {
+                Ok(index)=>{
+                    command_complete(global_tasks,index)?;
+                    command_list(global_tasks);
+                    return Ok(())
+                },
+                Err(_e)=>{
+                    return Err("Invalid COMPLETE command please try again.".to_string())
+                }
             };
-            if !invalid_complete{
-                command_complete(global_tasks,index);
-                command_list(global_tasks);
-            }else{
-                println!("Invalid COMPLETE command please try again.");
-            }
         },
-        TASKCOM::Exit=>{
-            command_exit();
-        }
+        TASKCOM::Exit=>Ok(command_exit()),
+        TASKCOM::Unknown=> Err("Invalid command. Try 'help' for a list of commands.".to_string())
     }
-    //println!("Command was: {:?}",command);//debug
-    run_tasklist(false,global_tasks);
 }
 
+/// Starts the terminal input loop, receives, parses, and initiates commands.
+fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
+    let _state=TASKCOM::Help;
+    
+    if first_run {
+        show_welcome_msg();
+    }
+
+    loop{
+        let input = read_input_line().trim().to_string();
+        let (command,arguments) = parse_input(&input);
+
+        let command_enum=match command.as_str(){
+            "help"=>TASKCOM::Help,
+            "list"=>TASKCOM::List,
+            "add"=>TASKCOM::Add,
+            "remove"=>TASKCOM::Remove,
+            "complete"=>TASKCOM::Complete,
+            "exit"=>{break;},
+            &_ => TASKCOM::Unknown
+        };
+        match handle_command(command_enum,arguments,global_tasks){
+            Ok(_)=>{},
+            Err(error)=>{     
+                //println!("Command was: {:?}",command);//debug       
+                println!("{}",error) // we bubble these up to here from inside the commands
+            }
+        }
+    }
+}
+
+/// Prepares mock data and runs some tests.
 fn run_mocktrial(){
     let mock_tasks=create_mocklist(10);
     let mut task_list=TaskList{
@@ -256,31 +306,21 @@ fn run_mocktrial(){
     task_list.print();
 }
 
+/// Generates a list of fake Tasks for testing.
 fn create_mocklist(num:i32)->Vec<Task>{
-    // brute force for loop for amount of mocks
-    // let vector=&mut vec![];
-    // let mut mock_task:Task;
-    // let mut mock_data:String;
-    // for n in 1..=num {
-    //     mock_data = String::from("Mock Task ");
-    //     mock_data.push_str(n.to_string().as_str());
-    //     mock_task=Task::new(false,mock_data);
-    //     vector.push(mock_task);
-    // }
-    // let result=vector.clone();
-    // result
+    // Ensure num is positive
+    assert!(num > 0, "num must be a positive integer");
 
     //functional for loop
+    // old .collect::<Vec<_>>()
     (1..=num)
-        .map(|i| {
-            let data = format!("Mock Task {}", i);
-            Task::new(false, data)
-        })
-        .collect::<Vec<_>>() 
+        .map(|i| Task::new(false, format!("Mock Task {}", i)))
+        .collect() 
 }
 
+/// Creates state object and initiates terminal input loop.
 fn main() {
-    run_mocktrial();
+    //run_mocktrial();
     let global_tasklist=&mut TaskList{
         tasks:Vec::new()
     };
