@@ -79,6 +79,7 @@ impl TaskList{
 }
 
 /// Represents Task Commands user is able to input.
+#[derive(Clone)]
 enum TASKCOM{
     Help,
     List,
@@ -249,9 +250,7 @@ fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskLi
 }
 
 /// Starts the terminal input loop, receives, parses, and initiates commands.
-fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
-    let _state=TASKCOM::Help;
-    
+fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){    
     if first_run {
         show_welcome_msg();
     }
@@ -259,7 +258,7 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
     loop{
         let input = read_input_line().trim().to_string();
         let (command,arguments) = parse_input(&input);
-
+        
         let command_enum=match command.as_str(){
             "help"=>TASKCOM::Help,
             "list"=>TASKCOM::List,
@@ -269,6 +268,7 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
             "exit"=>{break;},
             &_ => TASKCOM::Unknown
         };
+        let mut _last_state=command_enum.clone();
         match handle_command(command_enum,arguments,global_tasks){
             Ok(_)=>{},
             Err(error)=>{     
