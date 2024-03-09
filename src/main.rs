@@ -226,28 +226,22 @@ fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskLi
             Ok(())
         },
         TASKCOM::Remove=>{
-            match arguments[0].parse::<usize>() {
-                Ok(index)=>{
-                    command_remove(global_tasks,index)?;
-                    command_list(global_tasks);
-                    return Ok(())
-                },
-                Err(_e)=>{
-                    return Err("Invalid REMOVE command please try again.".to_string())
-                }
+            let index=match arguments[0].parse::<usize>() {
+                Ok(index)=>{index},
+                Err(_e)=>{return Err("Invalid REMOVE command please try again.".to_string())}
             };
+            command_remove(global_tasks,index)?;
+            command_list(global_tasks);
+            Ok(())
         },
         TASKCOM::Complete=>{
-            match arguments[0].parse::<usize>() {
-                Ok(index)=>{
-                    command_complete(global_tasks,index)?;
-                    command_list(global_tasks);
-                    return Ok(())
-                },
-                Err(_e)=>{
-                    return Err("Invalid COMPLETE command please try again.".to_string())
-                }
+            let index=match arguments[0].parse::<usize>() {
+                Ok(index)=>{index},
+                Err(_e)=>{return Err("Invalid COMPLETE command please try again.".to_string())}
             };
+            command_complete(global_tasks,index)?;
+            command_list(global_tasks);
+            Ok(())
         },
         TASKCOM::Exit=>Ok(command_exit()),
         TASKCOM::Unknown=> Err("Invalid command. Try 'help' for a list of commands.".to_string())
