@@ -399,6 +399,9 @@ fn main() {
     let string_totasklist=convert_stringtotl(string_tasklist.clone());
     println!("{}",string_tasklist);
     println!("{:?}",string_totasklist);
+    let _ = save_tltofile("tasklist.md".to_string(), global_tasklist.clone());
+    let new_tasklist=load_tlfromfile("tasklist.md".to_string());
+    println!("{:?}",new_tasklist);
 
     run_tasklist(true,global_tasklist);
 }
