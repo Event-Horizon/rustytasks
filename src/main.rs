@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use rand::Rng;
-use std::fmt;
+use regex::Regex;
+use std::{fmt, fs::File, io::{Error, Read, Write}};
 
 /// Represents a task with a completion status and associated data.
 #[derive(Debug,Clone)]
@@ -27,7 +28,7 @@ impl Task{
 }
 
 /// Represents a list of Tasks
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 struct TaskList {
     tasks: Vec<Task>,
 }
@@ -312,11 +313,92 @@ fn create_mocklist(num:i32)->Vec<Task>{
         .collect() 
 }
 
+/// Convert tasklist to string
+fn convert_tltostring(tl:TaskList)->String{
+    let eol = "\r\n";
+    let mut result = String::new();
+    result += eol;
+    result += format!("# TaskList:{eol}").as_str();
+    for task in tl.tasks{
+        let tdata=task.data;
+        let tcompleted=task.completed;
+        result += format!(" - {tdata} ").as_str();
+        result += match tcompleted{
+            true => "[√]",
+            false => "[ ]"
+        };
+        //result += tcompleted.to_string().as_str();
+        result += eol;
+    }
+
+    result
+}
+
+/// Convert string to tasklist
+fn convert_stringtotl(data:String)->TaskList{
+    println!("CONVERT STRING TO TL DATAIN:{}",data);
+    let lines = data.split("\r\n");
+    let mut tl:TaskList=TaskList{ tasks: Vec::new() };
+    let mut tlfound=false;
+    for line in lines{ 
+        if line.contains("# TaskList:"){
+            tlfound=true;
+        }
+        if tlfound{//even AFTER the line detected, this allows rest of code to run because its saved outside loop
+            // convert - lines into Tasks     
+            let re = Regex::new(r" - (.+) (\[[ √]\])").unwrap();
+
+            let temp_task = match re.captures(line){
+                Some(captures)=>captures,
+                None=>continue
+            };
+            let tdata:String=temp_task[1].to_string();
+            let tcompleted_string:String=temp_task[2].to_string();
+
+            // convert brackets into completed/uncompleted
+            let tcompleted:bool = match tcompleted_string{
+                l if l.contains("[√]") => true,
+                l if l.contains("[ ]") => false,
+                _ => false
+            };
+            tl.tasks.push(Task::new(tcompleted,tdata));
+        }
+    }
+    // Return TaskList, if one was not found we return an empty TaskList
+    tl
+}
+
+/// Save tasklist struct to file
+fn save_tltofile(path:String,tasklist:TaskList)->Result<String,Error>{
+    let string_tasklist=convert_tltostring(tasklist);
+
+    let mut file = File::create(path).expect("Unable to create file.");
+    file.write_all(string_tasklist.as_bytes()).expect("Unable to write data.");
+    Ok("TaskList saved to file.".to_string())
+}
+
+/// Load tasklist struct from file
+fn load_tlfromfile(path:String)->TaskList{
+    let mut data = String::new();
+    let mut file = File::open(path).expect("Unable to open file.");
+    file.read_to_string(&mut data).expect("Unable to read string.");
+    convert_stringtotl(data)
+}
+
 /// Creates state object and initiates terminal input loop.
 fn main() {
     //run_mocktrial();
     let global_tasklist=&mut TaskList{
         tasks:Vec::new()
     };
+    let _=global_tasklist.add_task(Task::new(false, "test".to_string()));
+    let _=global_tasklist.add_task(Task::new(true, "test".to_string()));
+
+    // Testing conversions and file save/load
+    let string_tasklist=convert_tltostring(global_tasklist.clone());
+    let string_totasklist=convert_stringtotl(string_tasklist.clone());
+    println!("{}",string_tasklist);
+    println!("{:?}",string_totasklist);
+
     run_tasklist(true,global_tasklist);
 }
