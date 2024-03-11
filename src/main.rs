@@ -13,7 +13,11 @@ struct Task{
 /// Implements a default Display formatter for Tasks
 impl fmt::Display for Task{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,"Task{{ completed: {}, data: {} }}",self.completed,self.data)
+        let string_completed = match self.completed {
+            true=>"[√]",
+            false=>"[ ]"
+        };
+        write!(f,"Task -> {} {} ",self.data,string_completed)
     }
 }
 
@@ -75,7 +79,7 @@ impl TaskList{
         .map(|(i,v)| String::from(i.to_string()+": "+v.to_string().as_str()))
         .join((String::from("\r\n")+&spacing).as_str());
 
-        println!("{spacing}Tasks: [\r\n{spacing}{}\r\n{spacing}]",result)
+        println!("{spacing}Tasks: \r\n{spacing}{}\r\n{spacing}",result)
     }
 }
 
@@ -155,25 +159,36 @@ fn command_list(global_tasks:&mut TaskList){
 }
 
 /// Adds new Task to TaskList
-fn command_add(global_tasks:&mut TaskList,d:String)->Result<(),String>{
-    global_tasks.add_task(Task::new(false, d))?;
-    Ok(())
+fn command_add(global_tasks:&mut TaskList,d:String,global_datafilepath:String)->Result<(),String>{
+    match global_tasks.add_task(Task::new(false, d)){
+        Ok(_)=>{
+            let _ = save_tltofile(global_datafilepath, global_tasks.clone());
+            return Ok(())
+        },
+        Err(_)=>{return Err("Invalid ADD command please try again.".to_string())}
+    };
 }
 
 /// Removes a Task in TaskList by Index
-fn command_remove(global_tasks:&mut TaskList,index:usize)->Result<(),String>{
+fn command_remove(global_tasks:&mut TaskList,index:usize,global_datafilepath:String)->Result<(),String>{
     match global_tasks.delete_task(index){
-        Ok(_)=>{Ok(())},
-        Err(_)=>{Err("Invalid REMOVE command please try again.".to_string())}
+        Ok(_)=>{
+            let _ = save_tltofile(global_datafilepath, global_tasks.clone());
+            return Ok(())
+        },
+        Err(_)=>{return Err("Invalid REMOVE command please try again.".to_string())}
     }
 }
 
 /// Completes a Task in TaskList by Index
-fn command_complete(global_tasks:&mut TaskList,index:usize)->Result<(),String>{
+fn command_complete(global_tasks:&mut TaskList,index:usize,global_datafilepath:String)->Result<(),String>{
     match global_tasks.toggle_completed_task(index) {
-        Ok(_)=>{Ok(())},
-        Err(_)=>{Err("Invalid COMPLETE command please try again.".to_string())}
-    }
+        Ok(_)=>{
+            let _ = save_tltofile(global_datafilepath, global_tasks.clone());
+            return Ok(())
+        },
+        Err(_)=>{return Err("Invalid COMPLETE command please try again.".to_string())}
+    }    
 }
 
 /// Ends the process and exits to terminal
@@ -211,7 +226,7 @@ fn parse_input(input: &str) -> (String, Vec<String>){
 }
 
 /// Converts command struct into function calls to run command
-fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskList)->Result<(),String>{
+fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskList,global_datafilepath:String)->Result<(),String>{
     match command{
         TASKCOM::Help=>{
             let help = match command_help(arguments.get(0).map(|s| s.trim().to_string())){
@@ -223,7 +238,7 @@ fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskLi
         },
         TASKCOM::List=>Ok(command_list(global_tasks)),
         TASKCOM::Add=>{
-            command_add(global_tasks,arguments[0].to_string())?;
+            command_add(global_tasks,arguments[0].to_string(),global_datafilepath)?;
             command_list(global_tasks);
             Ok(())
         },
@@ -232,7 +247,7 @@ fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskLi
                 Ok(index)=>{index},
                 Err(_e)=>{return Err("Invalid REMOVE command please try again.".to_string())}
             };
-            command_remove(global_tasks,index)?;
+            command_remove(global_tasks,index,global_datafilepath)?;
             command_list(global_tasks);
             Ok(())
         },
@@ -241,7 +256,7 @@ fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskLi
                 Ok(index)=>{index},
                 Err(_e)=>{return Err("Invalid COMPLETE command please try again.".to_string())}
             };
-            command_complete(global_tasks,index)?;
+            command_complete(global_tasks,index,global_datafilepath)?;
             command_list(global_tasks);
             Ok(())
         },
@@ -251,9 +266,10 @@ fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskLi
 }
 
 /// Starts the terminal input loop, receives, parses, and initiates commands.
-fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){    
+fn run_tasklist(first_run:bool,global_tasks:&mut TaskList,global_datafilepath:String){    
     if first_run {
         show_welcome_msg();
+        command_list(global_tasks);
     }
 
     loop{
@@ -270,7 +286,7 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
             &_ => TASKCOM::Unknown
         };
         let mut _last_state=command_enum.clone();
-        match handle_command(command_enum,arguments,global_tasks){
+        match handle_command(command_enum,arguments,global_tasks,global_datafilepath.clone()){
             Ok(_)=>{},
             Err(error)=>{     
                 //println!("Command was: {:?}",command);//debug       
@@ -281,7 +297,7 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList){
 }
 
 /// Prepares mock data and runs some tests.
-fn run_mocktrial(){
+fn test_runmocktrial(){
     let mock_tasks=create_mocklist(10);
     let mut task_list=TaskList{
         tasks:mock_tasks.to_vec()
@@ -336,7 +352,7 @@ fn convert_tltostring(tl:TaskList)->String{
 
 /// Convert string to tasklist
 fn convert_stringtotl(data:String)->TaskList{
-    println!("CONVERT STRING TO TL DATAIN:{}",data);
+    //println!("CONVERT STRING TO TL DATAIN:{}",data);
     let lines = data.split("\r\n");
     let mut tl:TaskList=TaskList{ tasks: Vec::new() };
     let mut tlfound=false;
@@ -372,36 +388,57 @@ fn convert_stringtotl(data:String)->TaskList{
 fn save_tltofile(path:String,tasklist:TaskList)->Result<String,Error>{
     let string_tasklist=convert_tltostring(tasklist);
 
-    let mut file = File::create(path).expect("Unable to create file.");
-    file.write_all(string_tasklist.as_bytes()).expect("Unable to write data.");
+    let mut file = File::create(&path).ok();
+    match file{
+        Some(ref mut f)=>{
+            file.unwrap().write_all(string_tasklist.as_bytes()).unwrap_or_default();
+        },
+        None=>{
+            eprintln!("Error: File not found at path '{}'", path);
+        }
+    }
     Ok("TaskList saved to file.".to_string())
 }
 
 /// Load tasklist struct from file
 fn load_tlfromfile(path:String)->TaskList{
     let mut data = String::new();
-    let mut file = File::open(path).expect("Unable to open file.");
-    file.read_to_string(&mut data).expect("Unable to read string.");
+    let mut file = File::open(&path).ok();
+    let mut file_opened=false;
+    match file{
+        Some(ref mut f)=>{file_opened=true;}
+        None=>{
+            eprintln!("Error: File not found at path '{}'", &path);
+        }
+    };
+    if file_opened{
+        file.unwrap().read_to_string(&mut data).unwrap_or_default();
+    }
     convert_stringtotl(data)
+}
+
+fn test_filesaveload(global_tasklist:&mut TaskList,global_datafilepath:String){
+    // create mock tasks
+    let _=global_tasklist.add_task(Task::new(false, "test".to_string()));
+    let _=global_tasklist.add_task(Task::new(true, "test2".to_string()));
+    let _=global_tasklist.add_task(Task::new(true, "test3".to_string()));
+    // Testing conversions and file save/load
+    let string_tasklist=convert_tltostring(global_tasklist.clone());
+    let string_totasklist=convert_stringtotl(string_tasklist.clone());
+    println!("STRING: {}\r\n",string_tasklist);
+    println!("TASKLIST: {:?}\r\n",string_totasklist);
+    let _ = save_tltofile(global_datafilepath.clone(), global_tasklist.clone());
+    let new_tasklist=load_tlfromfile(global_datafilepath.clone());
+    println!("TASKLIST after SAVE/LOAD: {:?}",new_tasklist);
 }
 
 /// Creates state object and initiates terminal input loop.
 fn main() {
-    //run_mocktrial();
-    let global_tasklist=&mut TaskList{
-        tasks:Vec::new()
-    };
-    let _=global_tasklist.add_task(Task::new(false, "test".to_string()));
-    let _=global_tasklist.add_task(Task::new(true, "test".to_string()));
+    //test_runmocktrial();
+    let global_datafilepath:String="data/tasklist.md".to_string();
+    let global_tasklist=&mut load_tlfromfile(global_datafilepath.clone());
 
-    // Testing conversions and file save/load
-    let string_tasklist=convert_tltostring(global_tasklist.clone());
-    let string_totasklist=convert_stringtotl(string_tasklist.clone());
-    println!("{}",string_tasklist);
-    println!("{:?}",string_totasklist);
-    let _ = save_tltofile("tasklist.md".to_string(), global_tasklist.clone());
-    let new_tasklist=load_tlfromfile("tasklist.md".to_string());
-    println!("{:?}",new_tasklist);
+    //test_filesaveload(global_tasklist, global_datafilepath.clone());
 
-    run_tasklist(true,global_tasklist);
+    run_tasklist(true,global_tasklist,global_datafilepath.clone());
 }

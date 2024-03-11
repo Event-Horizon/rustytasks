@@ -1,4 +1,0 @@
-
-# TaskList:
- - test [ ]
- - test [√]
