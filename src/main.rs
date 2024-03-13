@@ -143,10 +143,13 @@ impl TASKCOM {
 fn list_task_commands()->colored::ColoredString{
     let mut result:String=String::new();
     for command in TASKCOM::into_iter(){
-        if command.to_string() != "UNKNOWN" {
-            result+=format!("{command} ").as_str();        }
-
+        if command.to_string() != "UNKNOWN" { // this is a value for devs only
+            result+=format!("{command} ").as_str();        
+        }
     }
+    //cleanup and clarity
+    result=result.trim_end().to_string();
+    result=result.split(" ").join(", ");
     result.green()
 }
 
