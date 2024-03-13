@@ -2,7 +2,7 @@
 use rand::Rng;//import for tests
 use itertools::Itertools;
 use regex::Regex;
-use std::{fmt, fs::{canonicalize, create_dir_all, metadata, File, OpenOptions}, io::{self, Error, ErrorKind, Read, Write}, path::Path, string};
+use std::{fmt, fs::{create_dir_all, File, OpenOptions}, io::{self, Error, ErrorKind, Read, Write}, path::Path};
 use colored::Colorize;
 
 /// Represents a task with a completion status and associated data.
