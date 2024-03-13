@@ -140,7 +140,7 @@ impl TASKCOM {
 fn list_task_commands()->colored::ColoredString{
     let mut result:String=String::new();
     for command in TASKCOM::into_iter(){
-        if(command.to_string() != "UNKNOWN"){
+        if command.to_string() != "UNKNOWN" {
             result+=format!("{command} ").as_str();        }
 
     }
@@ -173,13 +173,13 @@ fn command_help(command:Option<String>)->Result<String,String>{
     let somenone;
 
     let somenone_case=||{        
-        commandlist_formatted=format!(
+        commandlist_formatted.push_str(&format!(
 r#"
 {spacing}Please use these commands to interact:{eol}
 {spacing}{commandlist}{eol}    
 {spacing}For further help type 'help command' like 'help add' no quotes.
 "#
-);
+));
     commandlist_formatted
     };
     
@@ -371,6 +371,7 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList,global_datafilepath:St
 }
 
 /// Prepares mock data and runs some tests.
+#[allow(dead_code)]
 fn test_runmocktrial(){
     let mock_tasks=create_mocklist(10);
     let mut task_list=TaskList{
@@ -392,6 +393,7 @@ fn test_runmocktrial(){
 }
 
 /// Generates a list of fake Tasks for testing.
+#[allow(dead_code)]
 fn create_mocklist(num:i32)->Vec<Task>{
     // Ensure num is positive
     assert!(num > 0, "num must be a positive integer");
@@ -461,7 +463,7 @@ fn save_tltofile(path:String,tasklist:TaskList)->Result<String,Error>{
 
     let mut file = File::create(&path).ok();
     match file{
-        Some(ref mut f)=>{
+        Some(ref mut _f)=>{
             file.unwrap().write_all(string_tasklist.as_bytes()).unwrap_or_default();
         },
         None=>{
@@ -477,7 +479,7 @@ fn load_tlfromfile(path:String)->TaskList{
     let mut file = File::open(&path).ok();
     let mut file_opened=false;
     match file{
-        Some(ref mut f)=>{file_opened=true;}
+        Some(ref mut _f)=>{file_opened=true;}
         None=>{
             eprintln!("Error: File not found at path '{}'", &path);
         }
@@ -488,6 +490,7 @@ fn load_tlfromfile(path:String)->TaskList{
     convert_stringtotl(data)
 }
 
+#[allow(dead_code)]
 fn test_filesaveload(global_tasklist:&mut TaskList,global_datafilepath:String){
     // create mock tasks
     let _=global_tasklist.add_task(Task::new(false, "test".to_string()));
