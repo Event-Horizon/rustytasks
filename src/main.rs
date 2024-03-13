@@ -506,9 +506,20 @@ fn save_tltofile(filepath:String,tasklist:TaskList)->Result<String,Error>{
     let file_exists = std::path::Path::new(&filepath).exists();
 
     if file_exists{        
-        handle_existing_file(&filepath,&string_tasklist)?;
+        match handle_existing_file(&filepath,&string_tasklist){
+            Ok(_)=>{},
+            Err(e)=>{
+                eprintln!("Invalid handling of existing file:{e}")
+            }
+        }
     }else{
-        handle_new_file(&filepath, &string_tasklist)?;
+        //println!("not exists");// ? debug
+        match handle_new_file(&filepath, &string_tasklist){
+            Ok(_)=>{},
+            Err(e)=>{
+                eprintln!("Invalid handling of new file:{e}")
+            }
+        }
     }
 
     // println!("File saved successfully."); // ? debug
@@ -517,17 +528,20 @@ fn save_tltofile(filepath:String,tasklist:TaskList)->Result<String,Error>{
 }
 
 fn handle_new_file(filepath: &str, data: &str)->Result<(),Error>{
-    // Check if the file has write permissions
-    let not_readonly = !Path::new(filepath).metadata()?.permissions().readonly();
+    // Check if we have write permissions for the folder
+    let parent_directory = Path::new(filepath).parent().ok_or_else(|| {
+        eprintln!("Error getting parent directory for file: {}", filepath);
+        Error::new(ErrorKind::Other, "Invalid parent directory")
+    })?;
 
-    if not_readonly {
-        // File does not exist, have permissions, create file
+    if !parent_directory.metadata()?.permissions().readonly() {
+        // Folder has write permissions, create file
         let mut file = File::create(filepath)?;
         file.write_all(data.as_bytes())?;
     } else {
-        // File does not exist, no write permissions, error
-        eprintln!("Error: No write permissions for the new file.");
-        return Err(Error::new(ErrorKind::PermissionDenied, "No write permissions"));
+        // Folder does not have write permissions, error
+        eprintln!("Error: No write permissions for the new file's parent directory.");
+        return Err(Error::new(ErrorKind::PermissionDenied, "No write permissions for parent directory"));
     }
 
     Ok(())
