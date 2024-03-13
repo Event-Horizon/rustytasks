@@ -21,8 +21,8 @@ impl fmt::Display for Task{
         };
         let struct_string="Task ->".color("purple");
         let formatted_data=match self.completed{
-            true=>self.data.color("white"),
-            false=>self.data.strikethrough().truecolor(125,125,125)
+            true=>self.data.strikethrough().truecolor(125,125,125),
+            false=>self.data.color("white")
         };
         write!(f,"{} {} {} ",struct_string,formatted_data,string_completed)
     }
