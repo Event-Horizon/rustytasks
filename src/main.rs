@@ -1,5 +1,6 @@
 use itertools::Itertools;
-use rand::Rng;
+#[allow(unused_imports)]
+use rand::Rng;//import for tests
 use regex::Regex;
 use std::{fmt, fs::File, io::{self, Error, Read, Write}};
 use colored::Colorize;
@@ -45,13 +46,13 @@ struct TaskList {
 
 /// Implements Task management methods for TaskList
 impl TaskList{
-    fn add_task(&mut self,mytask:Task)->Result<(),String>{         
+    fn add_task(&mut self,mytask:Task)->Result<usize,String>{         
         let veclen=self.tasks.len();      
         self.tasks.push(mytask);
         if veclen >= self.tasks.len() {
             return Err("Push failed.".to_string())
         }
-        Ok(())
+        Ok(self.tasks.len() - 1)
     }
 
     fn delete_task(&mut self,index:usize)->Result<(),String>{
@@ -72,10 +73,12 @@ impl TaskList{
         Err("Invalid index.".to_string())
     }
 
+    #[allow(dead_code)]
     fn print(&self){
         println!("    Tasks: \r\n {:?}",self.tasks.iter().enumerate().format("\r\n "))
     }
 
+    #[allow(dead_code)]
     fn print_pretty(&self){
         let eol="\r\n";
         let indent=4;
@@ -371,25 +374,40 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList,global_datafilepath:St
 }
 
 /// Prepares mock data and runs some tests.
-#[allow(dead_code)]
+#[test]
 fn test_runmocktrial(){
     let mock_tasks=create_mocklist(10);
     let mut task_list=TaskList{
         tasks:mock_tasks.to_vec()
     };
 
-    task_list.print();
+    let initial_length = task_list.tasks.len();
+    
     let random_task=rand::thread_rng().gen_range(0..task_list.tasks.len());
-    let dtask = task_list.delete_task(random_task);
-    println!("Result: {:?}",dtask);
-    let random_task2=rand::thread_rng().gen_range(0..task_list.tasks.len());
-    let ctask = task_list.toggle_completed_task(random_task2);
-    println!("Result: {:?}",ctask);
-    task_list.print();
-    let temp_task=Task::new(false, String::from("Test Task 1"));
-    let atask=task_list.add_task(temp_task);
-    println!("Result: {:?}",atask);
-    task_list.print();
+    let _  = task_list.delete_task(random_task);
+    assert_eq!(task_list.tasks.len(), initial_length - 1);
+    // Verify tasklist random index is either gone or does not match deleted task
+    assert!(
+        !task_list.tasks.iter().any(|t| 
+            task_list.tasks[random_task].data != t.data &&
+            task_list.tasks[random_task].completed != t.completed
+    ));
+
+    let random_task2 = rand::thread_rng().gen_range(0..task_list.tasks.len());
+    let original_completed_state = task_list.tasks[random_task2].completed;
+
+    let _ = task_list.toggle_completed_task(random_task2);
+    let updated_completed_state = task_list.tasks[random_task2].completed;
+
+    // Assert that the completed state is inverted
+    assert_ne!(original_completed_state, updated_completed_state);
+
+    let temp_data=String::from("Test Task 1");
+    let temp_task=Task::new(false, temp_data);
+    let added_task_index =task_list.add_task(temp_task).unwrap();
+    // Assert that the task is present in the list at the returned index
+    assert!(added_task_index < task_list.tasks.len(), "Invalid index returned");
+    assert_eq!(task_list.tasks[added_task_index].data, "Test Task 1");
 }
 
 /// Generates a list of fake Tasks for testing.
@@ -403,6 +421,14 @@ fn create_mocklist(num:i32)->Vec<Task>{
     (1..=num)
         .map(|i| Task::new(false, format!("Mock Task {}", i)))
         .collect() 
+}
+
+#[test]
+fn test_createmocklist(){
+    let num = 5;
+    let mock_tasks = create_mocklist(num);
+
+    assert_eq!(num, mock_tasks.len() as i32);
 }
 
 /// Convert tasklist to string
