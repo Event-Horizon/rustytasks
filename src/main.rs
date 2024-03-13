@@ -1,7 +1,8 @@
 use itertools::Itertools;
 use rand::Rng;
 use regex::Regex;
-use std::{fmt, fs::File, io::{Error, Read, Write}};
+use std::{fmt, fs::File, io::{self, Error, Read, Write}};
+use colored::Colorize;
 
 /// Represents a task with a completion status and associated data.
 #[derive(Debug,Clone)]
@@ -14,10 +15,15 @@ struct Task{
 impl fmt::Display for Task{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let string_completed = match self.completed {
-            true=>"[√]",
-            false=>"[ ]"
+            true=>"[√]".green(),
+            false=>"[ ]".red()
         };
-        write!(f,"Task -> {} {} ",self.data,string_completed)
+        let struct_string="Task ->".color("purple");
+        let formatted_data=match self.completed{
+            true=>self.data.color("white"),
+            false=>self.data.strikethrough().truecolor(125,125,125)
+        };
+        write!(f,"{} {} {} ",struct_string,formatted_data,string_completed)
     }
 }
 
@@ -71,20 +77,26 @@ impl TaskList{
     }
 
     fn print_pretty(&self){
+        let eol="\r\n";
         let indent=4;
         let spacing = " ".repeat(indent);
         let result=self.tasks
         .iter()
         .enumerate()
-        .map(|(i,v)| String::from(i.to_string()+": "+v.to_string().as_str()))
-        .join((String::from("\r\n")+&spacing).as_str());
+        .map(|(i,v)| {
+            let n=i+1;
+            format!("{n}: {v}")}
+        )
+        .join(format!("\r\n{spacing}").as_str());
+        
+        let struct_string="Tasks: ".color("purple");
 
-        println!("{spacing}Tasks: \r\n{spacing}{}\r\n{spacing}",result)
+        println!("{spacing}{struct_string}{eol}{spacing}{result}{eol}{spacing}");
     }
 }
 
 /// Represents Task Commands user is able to input.
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 enum TASKCOM{
     Help,
     List,
@@ -95,9 +107,51 @@ enum TASKCOM{
     Unknown
 }
 
+impl fmt::Display for TASKCOM{
+    fn fmt(&self, f: &mut fmt::Formatter)->fmt::Result{
+        let com_string=match &self{
+            TASKCOM::Help=>"HELP",
+            TASKCOM::List=>"LIST",
+            TASKCOM::Add=>"ADD",
+            TASKCOM::Remove=>"REMOVE",
+            TASKCOM::Complete=>"COMPLETE",
+            TASKCOM::Exit=>"EXIT",
+            TASKCOM::Unknown=>"UNKNOWN"
+        };
+        write!(f,"{com_string}")
+    }
+}
+
+impl TASKCOM {
+    pub fn into_iter() -> core::array::IntoIter<TASKCOM, 7> {
+        [
+            TASKCOM::Help,
+            TASKCOM::List,
+            TASKCOM::Add,
+            TASKCOM::Remove,
+            TASKCOM::Complete,
+            TASKCOM::Exit,
+            TASKCOM::Unknown
+        ]
+        .into_iter()
+    }
+}
+
+fn list_task_commands()->colored::ColoredString{
+    let mut result:String=String::new();
+    for command in TASKCOM::into_iter(){
+        if(command.to_string() != "UNKNOWN"){
+            result+=format!("{command} ").as_str();        }
+
+    }
+    result.green()
+}
+
 /// Reads input line from Standard Input and returns it.
 fn read_input_line() -> String {
     let mut input = String::new();
+    print!("> ");
+    io::stdout().flush().unwrap();
     std::io::stdin()
         .read_line(&mut input)
         .expect("Could not read line.");
@@ -110,40 +164,58 @@ fn command_help(command:Option<String>)->Result<String,String>{
     // if let Some(com) = command.clone() {
     //     println!("HELP command was:{}",com.len());
     // } 
+    let eol="\r\n";
+    let indent=4;
+    let spacing = " ".repeat(indent);
+    let commandlist=list_task_commands();
+    //println!("{commandlist}");
+    let mut commandlist_formatted:String=String::new();
+    let somenone;
+
+    let somenone_case=||{        
+        commandlist_formatted=format!(
+r#"
+{spacing}Please use these commands to interact:{eol}
+{spacing}{commandlist}{eol}    
+{spacing}For further help type 'help command' like 'help add' no quotes.
+"#
+);
+    commandlist_formatted
+    };
     
-    let help_info = match command.as_deref() {
-        Some("list")=>{r#"
+    let help_info = match command {
+        Some(value) if value == "list" =>{r#"
     The LIST command will LIST out your current tasks.
     "#}
-        Some("add")=>{r#"
+        Some(value) if value == "add"=>{r#"
     The ADD command will ADD a task when used like so:
 
     add "This is a test!"
     "#}
-        Some("remove")=>{r#"
+        Some(value) if value == "remove"=>{r#"
     The REMOVE command will REMOVE a task when used like so:
 
-    remove 0
+    remove 1
 
     This removes task 0 from your tasklist.
     "#}
-        Some("complete")=>{r#"
+        Some(value) if value == "complete"=>{r#"
     The COMPLETE command will COMPLETE a task when used like so:
 
-    complete 0
+    complete 1
 
     This completes task 0 from your tasklist.
     "#},
-    Some("exit")=>{r#"
+    Some(value) if value =="exit"=>{r#"
     The EXIT command EXITS the CLI Rusty Tasks process.
     "#},
-    Some("")|None=>{
-        r#"    Please use these commands to interact:
-
-    HELP, LIST, ADD, REMOVE, COMPLETE, EXIT
-    
-    For further help type 'help command' like 'help add' no quotes.
-"#
+    Some(value) if value == "" =>{
+        somenone=somenone_case();
+        somenone.as_str()
+    }
+    None=>{
+        somenone=somenone_case();
+        somenone.as_str()
     }
     _=>"-1"
     };
@@ -170,7 +242,8 @@ fn command_add(global_tasks:&mut TaskList,d:String,global_datafilepath:String)->
 }
 
 /// Removes a Task in TaskList by Index
-fn command_remove(global_tasks:&mut TaskList,index:usize,global_datafilepath:String)->Result<(),String>{
+fn command_remove(global_tasks:&mut TaskList,mut index:usize,global_datafilepath:String)->Result<(),String>{
+    index=index.overflowing_sub(1).0;//prevent panic, handle elegantly later
     match global_tasks.delete_task(index){
         Ok(_)=>{
             let _ = save_tltofile(global_datafilepath, global_tasks.clone());
@@ -181,7 +254,8 @@ fn command_remove(global_tasks:&mut TaskList,index:usize,global_datafilepath:Str
 }
 
 /// Completes a Task in TaskList by Index
-fn command_complete(global_tasks:&mut TaskList,index:usize,global_datafilepath:String)->Result<(),String>{
+fn command_complete(global_tasks:&mut TaskList,mut index:usize,global_datafilepath:String)->Result<(),String>{
+    index=index.overflowing_sub(1).0;//prevent panic, handle elegantly later
     match global_tasks.toggle_completed_task(index) {
         Ok(_)=>{
             let _ = save_tltofile(global_datafilepath, global_tasks.clone());
@@ -361,22 +435,19 @@ fn convert_stringtotl(data:String)->TaskList{
             tlfound=true;
         }
         if tlfound{//even AFTER the line detected, this allows rest of code to run because its saved outside loop
-            // convert - lines into Tasks     
+            // convert - lines into Tasks   
             let re = Regex::new(r" - (.+) (\[[ √]\])").unwrap();
-
+            
             let temp_task = match re.captures(line){
                 Some(captures)=>captures,
-                None=>continue
+                None=>continue //skip rest of loop
             };
+            
             let tdata:String=temp_task[1].to_string();
             let tcompleted_string:String=temp_task[2].to_string();
 
             // convert brackets into completed/uncompleted
-            let tcompleted:bool = match tcompleted_string{
-                l if l.contains("[√]") => true,
-                l if l.contains("[ ]") => false,
-                _ => false
-            };
+            let tcompleted:bool = tcompleted_string.contains("[√]");
             tl.tasks.push(Task::new(tcompleted,tdata));
         }
     }
