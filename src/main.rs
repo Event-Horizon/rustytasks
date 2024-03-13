@@ -203,14 +203,14 @@ r#"
 
     remove 1
 
-    This removes task 0 from your tasklist.
+    This removes task 1 from your tasklist.
     "#}
         Some(value) if value == "complete"=>{r#"
     The COMPLETE command will COMPLETE a task when used like so:
 
     complete 1
 
-    This completes task 0 from your tasklist.
+    This completes task 1 from your tasklist.
     "#},
     Some(value) if value =="exit"=>{r#"
     The EXIT command EXITS the CLI Rusty Tasks process.

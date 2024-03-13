@@ -46,7 +46,7 @@ Result:
 ```
 
     Tasks:[
-    0: Task{ completed: false, data: "this is a test!" }
+    1: Task{ completed: false, data: "this is a test!" }
     ]
 
 ```
@@ -62,7 +62,7 @@ Result:
 ```
 
     Tasks:[
-    0: Task{ completed: false, data: "this is a test!" }
+    1: Task{ completed: false, data: "this is a test!" }
     ]
 
 ```
@@ -70,7 +70,7 @@ Result:
 Command:
 ```
 
-remove 0
+remove 1
 
 ```
 
@@ -86,7 +86,7 @@ Result:
 Command:
 ```
 
-complete 0
+complete 1
 
 ```
 
@@ -94,7 +94,7 @@ Result:
 ```
 
     Tasks:[
-    0: Task{ completed: true, data: "this is a test!" }
+    1: Task{ completed: true, data: "this is a test!" }
     ]
 
 ```
