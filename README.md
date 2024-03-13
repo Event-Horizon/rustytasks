@@ -45,9 +45,10 @@ list
 Result:
 ```
 
-    Tasks:[
-    1: Task{ completed: false, data: "this is a test!" }
-    ]
+    Tasks:
+    1: Task -> test [ ]
+    2: Task -> test2 [ ]
+    3: Task -> test3 [ ]
 
 ```
 
@@ -61,9 +62,11 @@ add "This is a test!"
 Result:
 ```
 
-    Tasks:[
-    1: Task{ completed: false, data: "this is a test!" }
-    ]
+    Tasks:
+    1: Task -> test [ ]
+    2: Task -> test2 [ ]
+    3: Task -> test3 [ ]
+    4: Task -> This is a test! [ ]
 
 ```
 
@@ -77,9 +80,10 @@ remove 1
 Result:
 ```
 
-    Tasks: [
-
-    ]
+    Tasks:
+    1: Task -> test2 [ ]
+    2: Task -> test3 [ ]
+    3: Task -> This is a test! [ ]
 
 ```
 
@@ -93,9 +97,10 @@ complete 1
 Result:
 ```
 
-    Tasks:[
-    1: Task{ completed: true, data: "this is a test!" }
-    ]
+    Tasks:
+    1: Task -> test2 [√]
+    2: Task -> test3 [ ]
+    3: Task -> This is a test! [ ]
 
 ```
 
