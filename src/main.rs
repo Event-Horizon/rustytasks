@@ -2,7 +2,7 @@
 use rand::Rng;//import for tests
 use itertools::Itertools;
 use regex::Regex;
-use std::{fmt, fs::File, io::{self, Error, Read, Write}};
+use std::{fmt, fs::{canonicalize, create_dir_all, metadata, File, OpenOptions}, io::{self, Error, ErrorKind, Read, Write}, path::Path, string};
 use colored::Colorize;
 
 /// Represents a task with a completion status and associated data.
@@ -489,20 +489,98 @@ fn convert_stringtotl(data:String)->TaskList{
 }
 
 /// Save tasklist struct to file
-fn save_tltofile(path:String,tasklist:TaskList)->Result<String,Error>{
+fn save_tltofile(filepath:String,tasklist:TaskList)->Result<String,Error>{
     let string_tasklist=convert_tltostring(tasklist);
 
-    let mut file = File::create(&path).ok();
-    match file{
-        Some(ref mut _f)=>{
-            file.unwrap().write_all(string_tasklist.as_bytes()).unwrap_or_default();
-        },
-        None=>{
-            eprintln!("Error: File not found at path '{}'", path);
+    // println!("Requested path: {}",filepath);// ? debug
+
+    // Create intermediate directories if they don't exist
+    if let Some(parent) = std::path::Path::new(&filepath).parent() {
+        if let Err(err) = create_dir_all(parent) {
+            eprintln!("Error creating directories: {}", err);
+            return Err(err);
+        }
+    };
+
+    // Check if the file exists before canonicalizing
+    let file_exists = std::path::Path::new(&filepath).exists();
+
+    if file_exists{        
+        handle_existing_file(&filepath,&string_tasklist)?;
+    }else{
+        handle_new_file(&filepath, &string_tasklist)?;
+    }
+
+    // println!("File saved successfully."); // ? debug
+    Ok("File saved successfully".to_string())
+
+}
+
+fn handle_new_file(filepath: &str, data: &str)->Result<(),Error>{
+    // Check if the file has write permissions
+    let not_readonly = !Path::new(filepath).metadata()?.permissions().readonly();
+
+    if not_readonly {
+        // File does not exist, have permissions, create file
+        let mut file = File::create(filepath)?;
+        file.write_all(data.as_bytes())?;
+    } else {
+        // File does not exist, no write permissions, error
+        eprintln!("Error: No write permissions for the new file.");
+        return Err(Error::new(ErrorKind::PermissionDenied, "No write permissions"));
+    }
+
+    Ok(())
+}
+
+fn handle_existing_file(filepath: &str, data: &str)->Result<(),Error>{
+    let data_directory = std::env::current_dir()?.join("data");
+    let data_directory_canon = data_directory.canonicalize()?.to_string_lossy().to_string();
+    let filepath_canon = Path::new(filepath).canonicalize()?.to_string_lossy().to_string();
+
+    if !filepath_canon.contains(&data_directory_canon) {
+        eprintln!(
+            "Error: Path does not contain the 'data' directory: {} datadir: {}",
+            filepath_canon, data_directory_canon
+        );
+        return Err(Error::new(ErrorKind::Other, "Invalid path"));
+    }
+
+    let file_exists = Path::new(filepath).exists();
+    let not_readonly = !Path::new(filepath).metadata()?.permissions().readonly();
+
+    match (file_exists, not_readonly) {
+        (true, true) => {
+            // File exists, have permissions, overwrite it
+            let mut file = OpenOptions::new().write(true).truncate(true).create(true).open(filepath)?;
+            file.write_all(data.as_bytes())?;
+        }
+        (true, false) => {
+            // File exists, no permissions, error
+            eprintln!("Error: No write permissions for the existing file.");
+            return Err(Error::new(ErrorKind::PermissionDenied, "No write permissions"));
+        }
+        (false, _) => {
+            // File not exists
         }
     }
-    Ok("TaskList saved to file.".to_string())
+
+    Ok(())
 }
+
+// let mut file = File::create(&filepath).ok();
+// match file{
+//     Some(ref mut _f)=>{
+//         file.unwrap().write_all(string_tasklist.as_bytes()).unwrap_or_default();
+//     },
+//     None=>{
+
+//         eprintln!("Error saving: File not found at filepath '{}'", filepath);
+//     }
+// }
+// Ok("TaskList saved to file.".to_string())
+
+
 
 /// Load tasklist struct from file
 fn load_tlfromfile(path:String)->TaskList{
@@ -512,7 +590,9 @@ fn load_tlfromfile(path:String)->TaskList{
     match file{
         Some(ref mut _f)=>{file_opened=true;}
         None=>{
-            eprintln!("Error: File not found at path '{}'", &path);
+            #[cfg(debug_assertions)]{//prevent this from running in release
+                eprintln!("Error loading: File not found at path '{}'", &path);
+            }
         }
     };
     if file_opened{
