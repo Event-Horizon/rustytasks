@@ -1,6 +1,6 @@
-use itertools::Itertools;
 #[allow(unused_imports)]
 use rand::Rng;//import for tests
+use itertools::Itertools;
 use regex::Regex;
 use std::{fmt, fs::File, io::{self, Error, Read, Write}};
 use colored::Colorize;
