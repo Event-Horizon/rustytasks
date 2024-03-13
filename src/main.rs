@@ -534,12 +534,12 @@ fn handle_new_file(filepath: &str, data: &str)->Result<(),Error>{
         Error::new(ErrorKind::Other, "Invalid parent directory")
     })?;
 
-    if !parent_directory.metadata()?.permissions().readonly() {
-        // Folder has write permissions, create file
+    let parent_notreadonly=!parent_directory.metadata()?.permissions().readonly();
+
+    if parent_notreadonly { // Folder has write permissions, create file        
         let mut file = File::create(filepath)?;
         file.write_all(data.as_bytes())?;
     } else {
-        // Folder does not have write permissions, error
         eprintln!("Error: No write permissions for the new file's parent directory.");
         return Err(Error::new(ErrorKind::PermissionDenied, "No write permissions for parent directory"));
     }
