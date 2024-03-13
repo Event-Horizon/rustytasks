@@ -390,11 +390,13 @@ fn test_runmocktrial(){
     let _  = task_list.delete_task(random_task);
     assert_eq!(task_list.tasks.len(), initial_length - 1);
     // Verify tasklist random index is either gone or does not match deleted task
-    assert!(
-        !task_list.tasks.iter().any(|t| 
-            task_list.tasks[random_task].data != t.data &&
-            task_list.tasks[random_task].completed != t.completed
-    ));
+    if random_task<task_list.tasks.len(){
+       assert!(
+            !task_list.tasks.iter().any(|t| 
+                task_list.tasks[random_task].data != t.data &&
+                task_list.tasks[random_task].completed != t.completed
+        ));
+    }
 
     let random_task2 = rand::thread_rng().gen_range(0..task_list.tasks.len());
     let original_completed_state = task_list.tasks[random_task2].completed;
@@ -409,7 +411,7 @@ fn test_runmocktrial(){
     let temp_task=Task::new(false, temp_data);
     let added_task_index =task_list.add_task(temp_task).unwrap();
     // Assert that the task is present in the list at the returned index
-    assert!(added_task_index < task_list.tasks.len(), "Invalid index returned");
+    assert!(added_task_index < task_list.tasks.len(), "Invalid index returned.");
     assert_eq!(task_list.tasks[added_task_index].data, "Test Task 1");
 }
 
