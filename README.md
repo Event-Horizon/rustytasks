@@ -1,6 +1,6 @@
 # Rusty Tasks
 
-rusty-tasks
+[rusty-tasks](https://github.com/Event-Horizon/rustytasks/releases/latest)
 
 Rust Task List Manager in the terminal.
 
