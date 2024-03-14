@@ -1,5 +1,7 @@
 # Rusty Tasks
 
+rusty-tasks
+
 Rust Task List Manager in the terminal.
 
 To start download the project, extract the zip, terminal to the cargo.toml dir and:

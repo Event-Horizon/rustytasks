@@ -285,6 +285,8 @@ fn show_welcome_msg(){
     println!(r#"
     Welcome to RUSTY TASKS!
     =======================
+    Version 0.0.1
+    =======================
 
 {}"#,help);
 }
