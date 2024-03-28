@@ -1,15 +1,16 @@
-#[allow(unused_imports)]
-use rand::Rng;//import for tests
+use std::{fmt, fs::{create_dir_all, File, OpenOptions}, io::{self, Error, ErrorKind, Read, Write}, path::Path, str::FromStr};
+use chrono::{DateTime, Utc, Local, TimeZone};
 use itertools::Itertools;
-use regex::Regex;
-use std::{fmt, fs::{create_dir_all, File, OpenOptions}, io::{self, Error, ErrorKind, Read, Write}, path::Path};
 use colored::Colorize;
+use regex::Regex;
 
 /// Represents a task with a completion status and associated data.
-#[derive(Debug,Clone)]
+#[derive(Default, Debug,Clone)]
 struct Task{
     completed: bool,
-    data: String
+    data: String,
+    due_date: Option<DateTime<Utc>>,
+    completed_date: Option<DateTime<Utc>>
 }
 
 /// Implements a default Display formatter for Tasks
@@ -24,7 +25,15 @@ impl fmt::Display for Task{
             true=>self.data.strikethrough().truecolor(125,125,125),
             false=>self.data.color("white")
         };
-        write!(f,"{} {} {} ",struct_string,formatted_data,string_completed)
+        let due_date = match self.due_date {
+            Some(value) => value.with_timezone(&Local).to_string().yellow(),
+            None=>{"N/A".to_string().yellow()}
+        };
+        let completed_date=match self.completed_date{
+            Some(value) => value.with_timezone(&Local).to_string().green(),
+            None=>{"N/A".to_string().green()}
+        };
+        write!(f,"{} {} [Due: {}] [Completed: {}] {}",struct_string,string_completed,due_date,completed_date,formatted_data)
     }
 }
 
@@ -33,7 +42,8 @@ impl Task{
     fn new(c:bool,d:String)->Task{
         Task{
             completed:c,
-            data:d
+            data:d,
+            ..Default::default()
         }
     }
 }
@@ -99,8 +109,9 @@ impl TaskList{
 }
 
 /// Represents Task Commands user is able to input.
-#[derive(Debug,Clone)]
+#[derive(Default,Debug,Clone)]
 enum TASKCOM{
+    #[default]
     Help,
     List,
     Add,
@@ -108,6 +119,22 @@ enum TASKCOM{
     Complete,
     Exit,
     Unknown
+}
+
+impl FromStr for TASKCOM{
+    type Err = ();
+    fn from_str(input: &str) -> Result<TASKCOM, Self::Err> {
+        match input {
+            "HELP"  => Ok(TASKCOM::Help),
+            "LIST"  => Ok(TASKCOM::List),
+            "ADD"  => Ok(TASKCOM::Add),
+            "REMOVE" => Ok(TASKCOM::Remove),
+            "COMPLETE" => Ok(TASKCOM::Complete),
+            "EXIT" => Ok(TASKCOM::Exit),
+            "UNKNOWN" => Ok(TASKCOM::Unknown),
+            _      => Err(()),
+        }
+    }
 }
 
 impl fmt::Display for TASKCOM{
@@ -126,6 +153,8 @@ impl fmt::Display for TASKCOM{
 }
 
 impl TASKCOM {
+    /// When you want ALL values TASKCOM can make
+    #[allow(dead_code)]
     pub fn into_iter() -> core::array::IntoIter<TASKCOM, 7> {
         [
             TASKCOM::Help,
@@ -138,14 +167,34 @@ impl TASKCOM {
         ]
         .into_iter()
     }
+
+    /// When you want to print out commands for the user
+    pub fn into_iter_client() -> core::array::IntoIter<TASKCOM, 6> {
+        [
+            TASKCOM::Help,
+            TASKCOM::List,
+            TASKCOM::Add,
+            TASKCOM::Remove,
+            TASKCOM::Complete,
+            TASKCOM::Exit,
+        ]
+        .into_iter()
+
+    }
+}
+
+fn get_localtime()->DateTime<Local> {
+    let utc_time: DateTime<Utc> = Utc::now();
+    let local_time: DateTime<Local> = utc_time.with_timezone(&Local);
+    // println!("UTC time: {}", utc_time);
+    // println!("Local time: {}", local_time);
+    return local_time
 }
 
 fn list_task_commands()->colored::ColoredString{
     let mut result:String=String::new();
-    for command in TASKCOM::into_iter(){
-        if command.to_string() != "UNKNOWN" { // this is a value for devs only
+    for command in TASKCOM::into_iter_client(){
             result+=format!("{command} ").as_str();        
-        }
     }
     //cleanup and clarity
     result=result.trim_end().to_string();
@@ -358,84 +407,24 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList,global_datafilepath:St
         let input = read_input_line().trim().to_string();
         let (command,arguments) = parse_input(&input);
         
-        let command_enum=match command.as_str(){
-            "help"=>TASKCOM::Help,
-            "list"=>TASKCOM::List,
-            "add"=>TASKCOM::Add,
-            "remove"=>TASKCOM::Remove,
-            "complete"=>TASKCOM::Complete,
-            "exit"=>{break;},
-            &_ => TASKCOM::Unknown
+        let command_enum = match TASKCOM::from_str(command.to_uppercase().as_str()){
+            Ok(tc)=>tc,
+            Err(e)=>{
+                eprintln!("Invalid command string, defaulting to HELP.");
+                eprintln!("Error was {:?}",e);
+                return ()
+            }       
         };
+
         let mut _last_state=command_enum.clone();
         match handle_command(command_enum,arguments,global_tasks,global_datafilepath.clone()){
             Ok(_)=>{},
             Err(error)=>{     
                 //println!("Command was: {:?}",command);//debug       
-                println!("{}",error) // we bubble these up to here from inside the commands
+                eprintln!("{}",error) // we bubble these up to here from inside the commands
             }
         }
     }
-}
-
-/// Prepares mock data and runs some tests.
-#[test]
-fn test_runmocktrial(){
-    let mock_tasks=create_mocklist(10);
-    let mut task_list=TaskList{
-        tasks:mock_tasks.to_vec()
-    };
-
-    let initial_length = task_list.tasks.len();
-    
-    let random_task=rand::thread_rng().gen_range(0..task_list.tasks.len());
-    let _  = task_list.delete_task(random_task);
-    assert_eq!(task_list.tasks.len(), initial_length - 1);
-    // Verify tasklist random index is either gone or does not match deleted task
-    if random_task<task_list.tasks.len(){
-       assert!(
-            !task_list.tasks.iter().any(|t| 
-                task_list.tasks[random_task].data != t.data &&
-                task_list.tasks[random_task].completed != t.completed
-        ));
-    }
-
-    let random_task2 = rand::thread_rng().gen_range(0..task_list.tasks.len());
-    let original_completed_state = task_list.tasks[random_task2].completed;
-
-    let _ = task_list.toggle_completed_task(random_task2);
-    let updated_completed_state = task_list.tasks[random_task2].completed;
-
-    // Assert that the completed state is inverted
-    assert_ne!(original_completed_state, updated_completed_state);
-
-    let temp_data=String::from("Test Task 1");
-    let temp_task=Task::new(false, temp_data);
-    let added_task_index =task_list.add_task(temp_task).unwrap();
-    // Assert that the task is present in the list at the returned index
-    assert!(added_task_index < task_list.tasks.len(), "Invalid index returned.");
-    assert_eq!(task_list.tasks[added_task_index].data, "Test Task 1");
-}
-
-/// Generates a list of fake Tasks for testing.
-#[allow(dead_code)]
-fn create_mocklist(num:i32)->Vec<Task>{
-    // Ensure num is positive
-    assert!(num > 0, "num must be a positive integer");
-
-    //functional for loop
-    // old .collect::<Vec<_>>()
-    (1..=num)
-        .map(|i| Task::new(false, format!("Mock Task {}", i)))
-        .collect() 
-}
-
-#[test]
-fn test_createmocklist(){
-    let num = 5;
-    let mock_tasks = create_mocklist(num);
-
-    assert_eq!(num, mock_tasks.len() as i32);
 }
 
 /// Convert tasklist to string
@@ -447,11 +436,22 @@ fn convert_tltostring(tl:TaskList)->String{
     for task in tl.tasks{
         let tdata=task.data;
         let tcompleted=task.completed;
-        result += format!(" - {tdata} ").as_str();
+        let tdue_date=match task.due_date{
+            Some(value)=>value.with_timezone(&Local).to_string(),
+            None=>"".to_string()
+        };
+        let tcompleted_date=match task.completed_date{
+            Some(value)=>value.with_timezone(&Local).to_string(),
+            None=>"".to_string()
+        };
+        result += format!(" - ").as_str();
         result += match tcompleted{
             true => "[√]",
             false => "[ ]"
         };
+        result += format!(" [Due: {tdue_date}]").as_str();
+        result += format!(" [Completed: {tcompleted_date}]").as_str();
+        result += format!(" {tdata}").as_str();
         //result += tcompleted.to_string().as_str();
         result += eol;
     }
@@ -471,19 +471,39 @@ fn convert_stringtotl(data:String)->TaskList{
         }
         if tlfound{//even AFTER the line detected, this allows rest of code to run because its saved outside loop
             // convert - lines into Tasks   
-            let re = Regex::new(r" - (.+) (\[[ √]\])").unwrap();
+            let re_full = Regex::new(r" - (\[[ √]\]) \[Due: (.*?)\] \[Completed: (.*?)\] (.*)").unwrap();
+            let _re_simple = Regex::new(r" - (\[[ √]\]) (.*)");
             
-            let temp_task = match re.captures(line){
+            let temp_task = match re_full.captures(line){
                 Some(captures)=>captures,
                 None=>continue //skip rest of loop
             };
             
-            let tdata:String=temp_task[1].to_string();
-            let tcompleted_string:String=temp_task[2].to_string();
-
+            let tcompleted_string:String=temp_task[1].to_string();
+            let tdue_date:String=temp_task[2].to_string();
+            let tcompleted_date:String=temp_task[3].to_string();
+            let tdata:String=temp_task[4].to_string();
+            
             // convert brackets into completed/uncompleted
             let tcompleted:bool = tcompleted_string.contains("[√]");
-            tl.tasks.push(Task::new(tcompleted,tdata));
+
+            // build task
+            let mut new_task=Task::new(tcompleted,tdata);
+
+            // date management
+            // always convert from LOCAL string, to UTC struct
+            let default_date_format="%Y-%m-%d %H:%M:%S %z";
+            new_task.due_date=match DateTime::parse_from_str(tdue_date.as_str(), default_date_format){
+                Ok(value)=>Some(value.to_utc()),
+                Err(_)=>None
+            };
+            new_task.completed_date=match DateTime::parse_from_str(tcompleted_date.as_str(), default_date_format){
+                Ok(value)=>Some(value.to_utc()),
+                Err(_)=>None
+            };
+
+            // task building complete
+            tl.tasks.push(new_task);
         }
     }
     // Return TaskList, if one was not found we return an empty TaskList
@@ -529,6 +549,7 @@ fn save_tltofile(filepath:String,tasklist:TaskList)->Result<String,Error>{
 
 }
 
+/// Non-existing file save
 fn handle_new_file(filepath: &str, data: &str)->Result<(),Error>{
     // Check if we have write permissions for the folder
     let parent_directory = Path::new(filepath).parent().ok_or_else(|| {
@@ -549,6 +570,7 @@ fn handle_new_file(filepath: &str, data: &str)->Result<(),Error>{
     Ok(())
 }
 
+/// Existing file save
 fn handle_existing_file(filepath: &str, data: &str)->Result<(),Error>{
     let data_directory = std::env::current_dir()?.join("data");
     let data_directory_canon = data_directory.canonicalize()?.to_string_lossy().to_string();
@@ -584,20 +606,6 @@ fn handle_existing_file(filepath: &str, data: &str)->Result<(),Error>{
     Ok(())
 }
 
-// let mut file = File::create(&filepath).ok();
-// match file{
-//     Some(ref mut _f)=>{
-//         file.unwrap().write_all(string_tasklist.as_bytes()).unwrap_or_default();
-//     },
-//     None=>{
-
-//         eprintln!("Error saving: File not found at filepath '{}'", filepath);
-//     }
-// }
-// Ok("TaskList saved to file.".to_string())
-
-
-
 /// Load tasklist struct from file
 fn load_tlfromfile(path:String)->TaskList{
     let mut data = String::new();
@@ -617,29 +625,96 @@ fn load_tlfromfile(path:String)->TaskList{
     convert_stringtotl(data)
 }
 
-#[allow(dead_code)]
-fn test_filesaveload(global_tasklist:&mut TaskList,global_datafilepath:String){
-    // create mock tasks
-    let _=global_tasklist.add_task(Task::new(false, "test".to_string()));
-    let _=global_tasklist.add_task(Task::new(true, "test2".to_string()));
-    let _=global_tasklist.add_task(Task::new(true, "test3".to_string()));
-    // Testing conversions and file save/load
-    let string_tasklist=convert_tltostring(global_tasklist.clone());
-    let string_totasklist=convert_stringtotl(string_tasklist.clone());
-    println!("STRING: {}\r\n",string_tasklist);
-    println!("TASKLIST: {:?}\r\n",string_totasklist);
-    let _ = save_tltofile(global_datafilepath.clone(), global_tasklist.clone());
-    let new_tasklist=load_tlfromfile(global_datafilepath.clone());
-    println!("TASKLIST after SAVE/LOAD: {:?}",new_tasklist);
-}
-
-/// Creates state object and initiates terminal input loop.
+/// !Creates state object and initiates terminal input loop.
 fn main() {
-    //test_runmocktrial();
     let global_datafilepath:String="data/tasklist.md".to_string();
     let global_tasklist=&mut load_tlfromfile(global_datafilepath.clone());
-
-    //test_filesaveload(global_tasklist, global_datafilepath.clone());
+    
+    get_localtime();
 
     run_tasklist(true,global_tasklist,global_datafilepath.clone());
+}
+
+/// !Start of the testing module for this app
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::Rng;//import for tests
+
+    /// Prepares mock data and runs some tests.
+    #[test]
+    fn test_runmocktrial(){
+        let mock_tasks=create_mocklist(10);
+        let mut task_list=TaskList{
+            tasks:mock_tasks.to_vec()
+        };
+
+        let initial_length = task_list.tasks.len();
+        
+        let random_task=rand::thread_rng().gen_range(0..task_list.tasks.len());
+        let _  = task_list.delete_task(random_task);
+        assert_eq!(task_list.tasks.len(), initial_length - 1);
+        // Verify tasklist random index is either gone or does not match deleted task
+        if random_task<task_list.tasks.len(){
+        assert!(
+                !task_list.tasks.iter().any(|t| 
+                    task_list.tasks[random_task].data != t.data &&
+                    task_list.tasks[random_task].completed != t.completed
+            ));
+        }
+
+        let random_task2 = rand::thread_rng().gen_range(0..task_list.tasks.len());
+        let original_completed_state = task_list.tasks[random_task2].completed;
+
+        let _ = task_list.toggle_completed_task(random_task2);
+        let updated_completed_state = task_list.tasks[random_task2].completed;
+
+        // Assert that the completed state is inverted
+        assert_ne!(original_completed_state, updated_completed_state);
+
+        let temp_data=String::from("Test Task 1");
+        let temp_task=Task::new(false, temp_data);
+        let added_task_index =task_list.add_task(temp_task).unwrap();
+        // Assert that the task is present in the list at the returned index
+        assert!(added_task_index < task_list.tasks.len(), "Invalid index returned.");
+        assert_eq!(task_list.tasks[added_task_index].data, "Test Task 1");
+    }
+
+    /// Generates a list of fake Tasks for testing.
+    #[allow(dead_code)]
+    fn create_mocklist(num:i32)->Vec<Task>{
+        // Ensure num is positive
+        assert!(num > 0, "num must be a positive integer");
+
+        //functional for loop
+        (1..=num)
+            .map(|i| Task::new(false, format!("Mock Task {}", i)))
+            .collect() 
+    }
+
+    #[test]
+    fn test_createmocklist(){
+        let num = 5;
+        let mock_tasks = create_mocklist(num);
+
+        assert_eq!(num, mock_tasks.len() as i32);
+    }
+
+    #[test]
+    fn test_filesaveload(){        
+        let global_datafilepath:String="testdata/tasklist.md".to_string();
+        let global_tasklist=&mut load_tlfromfile(global_datafilepath.clone());
+        // create mock tasks
+        let _=global_tasklist.add_task(Task::new(false, "test".to_string()));
+        let _=global_tasklist.add_task(Task::new(true, "test2".to_string()));
+        let _=global_tasklist.add_task(Task::new(true, "test3".to_string()));
+        // Testing conversions and file save/load
+        let string_tasklist=convert_tltostring(global_tasklist.clone());
+        let string_totasklist=convert_stringtotl(string_tasklist.clone());
+        println!("STRING: {}\r\n",string_tasklist);
+        println!("TASKLIST: {:?}\r\n",string_totasklist);
+        let _ = save_tltofile(global_datafilepath.clone(), global_tasklist.clone());
+        let new_tasklist=load_tlfromfile(global_datafilepath.clone());
+        println!("TASKLIST after SAVE/LOAD: {:?}",new_tasklist);
+    }
 }

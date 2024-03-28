@@ -15,3 +15,4 @@ target/
 
 # Data specifically for tracking tasks
 data/
+testdata/
