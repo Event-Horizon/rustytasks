@@ -286,8 +286,14 @@ fn command_list(global_tasks:&mut TaskList){
 }
 
 /// Adds new Task to TaskList
-fn command_add(global_tasks:&mut TaskList,d:String,global_datafilepath:String)->Result<(),String>{
-    match global_tasks.add_task(Task::new(false, d)){
+fn command_add(global_tasks:&mut TaskList,data:String,date:String,global_datafilepath:String)->Result<(),String>{
+    let default_date_format="%Y-%m-%d %H:%M:%S %z";
+    let mut temp_task = Task::new(false, data);
+    temp_task.due_date=match DateTime::parse_from_str(date.as_str(), default_date_format){
+        Ok(value)=>Some(value.to_utc()),
+        Err(_)=>None
+    };
+    match global_tasks.add_task(temp_task){
         Ok(_)=>{
             let _ = save_tltofile(global_datafilepath, global_tasks.clone());
             return Ok(())
@@ -314,6 +320,10 @@ fn command_complete(global_tasks:&mut TaskList,mut index:usize,global_datafilepa
     match global_tasks.toggle_completed_task(index) {
         Ok(_)=>{
             let _ = save_tltofile(global_datafilepath, global_tasks.clone());
+            match global_tasks.tasks[index].completed{
+                true=>global_tasks.tasks[index].completed_date=Some(Utc::now()),
+                false=>global_tasks.tasks[index].completed_date=None
+            }
             return Ok(())
         },
         Err(_)=>{return Err("Invalid COMPLETE command please try again.".to_string())}
@@ -369,7 +379,11 @@ fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskLi
         },
         TASKCOM::List=>Ok(command_list(global_tasks)),
         TASKCOM::Add=>{
-            command_add(global_tasks,arguments[0].to_string(),global_datafilepath)?;
+            if arguments.len()>1{
+                command_add(global_tasks,arguments[0].to_string(), arguments[1].to_string(),global_datafilepath)?;
+            }else{
+                command_add(global_tasks,arguments[0].to_string(), "".to_string(),global_datafilepath)?;
+            }
             command_list(global_tasks);
             Ok(())
         },
