@@ -245,7 +245,11 @@ r#"
         Some(value) if value == "add"=>{r#"
     The ADD command will ADD a task when used like so:
 
-    add "This is a test!"
+    add This is a test!
+
+    or to add with a due date:
+
+    add Testing,2024-03-30 12:00:00 -05:00
     "#}
         Some(value) if value == "remove"=>{r#"
     The REMOVE command will REMOVE a task when used like so:
