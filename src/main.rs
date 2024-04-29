@@ -1,4 +1,4 @@
-use std::{fmt, fs::{create_dir_all, File, OpenOptions}, io::{self, Error, ErrorKind, Read, Write}, path::Path, str::FromStr};
+use std::{collections::HashMap, fmt, fs::{create_dir_all, File, OpenOptions}, io::{self, Error, ErrorKind, Read, Write}, path::Path, str::FromStr};
 #[allow(unused_imports)]
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use itertools::Itertools;
@@ -228,59 +228,56 @@ fn command_help(command:Option<String>)->Result<String,String>{
     let spacing = " ".repeat(indent);
     let commandlist=list_task_commands();
     //println!("{commandlist}");
-    let mut commandlist_formatted:String=String::new();
-    let somenone;
 
-    let somenone_case=||{        
-        commandlist_formatted.push_str(&format!(
+    let noneempty_case = &format!(
 r#"
 {spacing}Please use these commands to interact:{eol}
 {spacing}{commandlist}{eol}    
 {spacing}For further help type 'help command' like 'help add' no quotes.
-"#
-));
-    commandlist_formatted
-    };
+"#);
+
+    let response_hash = HashMap::from([
+        ("list", r#"
+        The LIST command will LIST out your current tasks.
+        "#),
+        ("add", r#"
+        The ADD command will ADD a task when used like so:
+    
+        add This is a test!
+    
+        or to add with a due date:
+    
+        add Testing,2024-03-30 12:00:00 -05:00
+        "#),
+        ("remove", r#"
+        The REMOVE command will REMOVE a task when used like so:
+    
+        remove 1
+    
+        This removes task 1 from your tasklist.
+        "#),
+        ("complete", r#"
+        The COMPLETE command will COMPLETE a task when used like so:
+    
+        complete 1
+    
+        This completes task 1 from your tasklist.
+        "#),
+        ("exit", r#"
+        The EXIT command EXITS the CLI Rusty Tasks process.
+        "#),
+        ("empty_string", noneempty_case.as_str()),
+    ]);
     
     let help_info = match command {
-        Some(value) if value == "list" =>{r#"
-    The LIST command will LIST out your current tasks.
-    "#}
-        Some(value) if value == "add"=>{r#"
-    The ADD command will ADD a task when used like so:
-
-    add This is a test!
-
-    or to add with a due date:
-
-    add Testing,2024-03-30 12:00:00 -05:00
-    "#}
-        Some(value) if value == "remove"=>{r#"
-    The REMOVE command will REMOVE a task when used like so:
-
-    remove 1
-
-    This removes task 1 from your tasklist.
-    "#}
-        Some(value) if value == "complete"=>{r#"
-    The COMPLETE command will COMPLETE a task when used like so:
-
-    complete 1
-
-    This completes task 1 from your tasklist.
-    "#},
-    Some(value) if value =="exit"=>{r#"
-    The EXIT command EXITS the CLI Rusty Tasks process.
-    "#},
-    Some(value) if value == "" =>{
-        somenone=somenone_case();
-        somenone.as_str()
-    }
-    None=>{
-        somenone=somenone_case();
-        somenone.as_str()
-    }
-    _=>"-1"
+        Some(value) if value == "list" =>{response_hash["list"]}
+        Some(value) if value == "add"=>{response_hash["add"]}
+        Some(value) if value == "remove"=>{response_hash["remove"]}
+        Some(value) if value == "complete"=>{response_hash["complete"]},
+        Some(value) if value =="exit"=>{response_hash["exit"]},
+        Some(value) if value == "" =>{response_hash["empty_string"]}
+        None=>{response_hash["empty_string"]}
+        _=>"-1"
     };
     if help_info == "-1" {
         return Err("Invalid HELP command please try again.".to_string());
@@ -344,7 +341,7 @@ fn command_complete(global_tasks:&mut TaskList,mut index:usize,global_datafilepa
                 false=>{}
             }
 
-            let _=match save_tltofile(global_datafilepath, global_tasks.clone()) {
+            match save_tltofile(global_datafilepath, global_tasks.clone()) {
                 Ok(value)=>Some(value),
                 Err(_)=>{
                     eprintln!("Complete Command was unable to save to file.");
