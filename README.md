@@ -61,7 +61,7 @@ Result:
 Command:
 ```
 
-add "This is a test!"
+add This is a test!
 
 ```
 

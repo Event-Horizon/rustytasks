@@ -1,8 +1,12 @@
 use std::{fmt, fs::{create_dir_all, File, OpenOptions}, io::{self, Error, ErrorKind, Read, Write}, path::Path, str::FromStr};
-use chrono::{DateTime, Utc, Local, TimeZone};
+#[allow(unused_imports)]
+use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use itertools::Itertools;
 use colored::Colorize;
 use regex::Regex;
+
+/// TODO: 
+/// Timezone fix
 
 /// Represents a task with a completion status and associated data.
 #[derive(Default, Debug,Clone)]
@@ -27,7 +31,7 @@ impl fmt::Display for Task{
         };
         let due_date = match self.due_date {
             Some(value) => value.with_timezone(&Local).to_string().yellow(),
-            None=>{"N/A".to_string().yellow()}
+            None=>{"N/A".to_string().truecolor(125,125,125)}
         };
         let completed_date=match self.completed_date{
             Some(value) => value.with_timezone(&Local).to_string().green(),
@@ -293,10 +297,21 @@ fn command_list(global_tasks:&mut TaskList){
 fn command_add(global_tasks:&mut TaskList,data:String,date:String,global_datafilepath:String)->Result<(),String>{
     let default_date_format="%Y-%m-%d %H:%M:%S %z";
     let mut temp_task = Task::new(false, data);
-    temp_task.due_date=match DateTime::parse_from_str(date.as_str(), default_date_format){
-        Ok(value)=>Some(value.to_utc()),
-        Err(_)=>None
-    };
+    let default_time = NaiveTime::default(); // equivelant to NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+
+    if date != "" {
+        let parsed_date=NaiveDate::parse_from_str(date.as_str(), default_date_format)
+                                        .ok()
+                                        .unwrap_or_default()
+                                        .and_time(default_time);
+        let dt_utc=parsed_date.and_utc();
+        //let dt_localtimezone : DateTime<Local> = dt_utc.with_timezone(&Local);
+
+        temp_task.due_date=Some(dt_utc);
+    }else{
+        temp_task.due_date=None;
+    }
+    
     match global_tasks.add_task(temp_task){
         Ok(_)=>{
             let _ = save_tltofile(global_datafilepath, global_tasks.clone());
@@ -323,11 +338,19 @@ fn command_complete(global_tasks:&mut TaskList,mut index:usize,global_datafilepa
     index=index.overflowing_sub(1).0;//prevent panic, handle elegantly later
     match global_tasks.toggle_completed_task(index) {
         Ok(_)=>{
-            let _ = save_tltofile(global_datafilepath, global_tasks.clone());
+            // this must run before the save_tltofile
             match global_tasks.tasks[index].completed{
                 true=>global_tasks.tasks[index].completed_date=Some(Utc::now()),
-                false=>global_tasks.tasks[index].completed_date=None
+                false=>{}
             }
+
+            let _=match save_tltofile(global_datafilepath, global_tasks.clone()) {
+                Ok(value)=>Some(value),
+                Err(_)=>{
+                    eprintln!("Complete Command was unable to save to file.");
+                    None
+                }
+            };
             return Ok(())
         },
         Err(_)=>{return Err("Invalid COMPLETE command please try again.".to_string())}
@@ -341,17 +364,21 @@ fn command_exit(){
 
 /// On first run shows welcome message
 fn show_welcome_msg(){
-    let help = match command_help(None){
-        Ok(text)=>{text},
-        Err(error)=>{println!("There was an error with the HELP command: {}",error);return;}
-    };
+    let help = command_help(None)
+                       .unwrap_or_else(|_|{
+                            eprintln!("Expected error: command_help has failed with 'None' as the parameter, this indicates a DEV bug.");
+                            "".to_string()
+                        });
+    let indent=4;
+    let spacing = " ".repeat(indent);
     println!(r#"
-    Welcome to RUSTY TASKS!
-    =======================
-    Version 0.0.1
-    =======================
+{spacing}Welcome to RUSTY TASKS!
+{spacing}=======================
+{spacing}Version 0.0.1
+{spacing}=======================
 
 {}"#,help);
+
 }
 
 /// Parses user input into command and arguments
@@ -425,21 +452,27 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList,global_datafilepath:St
         let input = read_input_line().trim().to_string();
         let (command,arguments) = parse_input(&input);
         
-        let command_enum = match TASKCOM::from_str(command.to_uppercase().as_str()){
-            Ok(tc)=>tc,
-            Err(e)=>{
+        let command_enum=match TASKCOM::from_str(command.to_uppercase().as_str()).ok(){
+            Some(t)=>t,
+            None=>{
+                let help = match command_help(None){
+                    Ok(t)=>t,
+                    Err(e)=>format!("There was an error with the help command: {}",e)
+                };
                 eprintln!("Invalid command string, defaulting to HELP.");
-                eprintln!("Error was {:?}",e);
-                return ()
-            }       
+                eprintln!("{}",help);
+                //skip the rest of the loop there is no valid command to handle.
+                continue;
+            }
         };
 
         let mut _last_state=command_enum.clone();
+
         match handle_command(command_enum,arguments,global_tasks,global_datafilepath.clone()){
             Ok(_)=>{},
             Err(error)=>{     
                 //println!("Command was: {:?}",command);//debug       
-                eprintln!("{}",error) // we bubble these up to here from inside the commands
+                eprintln!("Error: {} \r\n Last State: {}",error,_last_state.to_string()) // we bubble these up to here from inside the commands
             }
         }
     }
@@ -511,6 +544,7 @@ fn convert_stringtotl(data:String)->TaskList{
             // date management
             // always convert from LOCAL string, to UTC struct
             let default_date_format="%Y-%m-%d %H:%M:%S %z";
+            
             new_task.due_date=match DateTime::parse_from_str(tdue_date.as_str(), default_date_format){
                 Ok(value)=>Some(value.to_utc()),
                 Err(_)=>None
@@ -519,6 +553,13 @@ fn convert_stringtotl(data:String)->TaskList{
                 Ok(value)=>Some(value.to_utc()),
                 Err(_)=>None
             };
+
+            // correct disparity between CHECK completed and COMPLETED date
+            if new_task.completed_date == None {
+                if tcompleted == true {
+                    new_task.completed_date = Some(Utc::now())
+                }
+            }
 
             // task building complete
             tl.tasks.push(new_task);
@@ -536,35 +577,28 @@ fn save_tltofile(filepath:String,tasklist:TaskList)->Result<String,Error>{
 
     // Create intermediate directories if they don't exist
     if let Some(parent) = std::path::Path::new(&filepath).parent() {
-        if let Err(err) = create_dir_all(parent) {
-            eprintln!("Error creating directories: {}", err);
-            return Err(err);
+        if let Err(directory_missing_error) = create_dir_all(parent) {
+            eprintln!("Error creating directories: {}", directory_missing_error);
+            return Err(directory_missing_error);
         }
     };
 
-    // Check if the file exists before canonicalizing
+    // Check if the file exists before handling
     let file_exists = std::path::Path::new(&filepath).exists();
 
-    if file_exists{        
-        match handle_existing_file(&filepath,&string_tasklist){
-            Ok(_)=>{},
-            Err(e)=>{
-                eprintln!("Invalid handling of existing file:{e}")
-            }
+    if file_exists{     
+        if let Err(file_exist_error) = handle_existing_file(&filepath,&string_tasklist){
+                eprintln!("Invalid handling of existing file:{file_exist_error}")
         }
     }else{
         //println!("not exists");// ? debug
-        match handle_new_file(&filepath, &string_tasklist){
-            Ok(_)=>{},
-            Err(e)=>{
-                eprintln!("Invalid handling of new file:{e}")
-            }
+        if let Err(new_file_error) = handle_new_file(&filepath, &string_tasklist){
+                eprintln!("Invalid handling of new file:{new_file_error}")
         }
     }
 
     // println!("File saved successfully."); // ? debug
     Ok("File saved successfully".to_string())
-
 }
 
 /// Non-existing file save
