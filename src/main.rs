@@ -5,6 +5,10 @@ use itertools::Itertools;
 use colored::Colorize;
 use regex::Regex;
 
+// pub mod rusty_tasks;
+// pub mod rusty_commands;
+// pub mod rusty_files;
+
 /// TODO: 
 /// Timezone fix
 
@@ -199,11 +203,11 @@ fn list_task_commands()->colored::ColoredString{
     let mut result:String=String::new();
     for command in TASKCOM::into_iter_client(){
             result+=format!("{command} ").as_str();        
-    }
-    //cleanup and clarity
-    result=result.trim_end().to_string();
-    result=result.split(" ").join(", ");
-    result.green()
+    }    
+    result.trim_end()
+        .split(" ")
+        .join(", ")
+        .green()
 }
 
 /// Reads input line from Standard Input and returns it.
@@ -219,15 +223,17 @@ fn read_input_line() -> String {
 
 /// Returns help information for commands
 fn command_help(command:Option<String>)->Result<String,String>{
-
-    // if let Some(com) = command.clone() {
-    //     println!("HELP command was:{}",com.len());
-    // } 
+    let debug = false;
+    if debug{
+        if let Some(com) = command.clone() {
+            println!("HELP command was:{}",com.len());
+        } 
+    }
     let eol="\r\n";
     let indent=4;
     let spacing = " ".repeat(indent);
     let commandlist=list_task_commands();
-    //println!("{commandlist}");
+    if debug {println!("{commandlist}");}
 
     let noneempty_case = &format!(
 r#"
@@ -303,7 +309,6 @@ fn command_add(global_tasks:&mut TaskList,data:String,date:String,global_datafil
                                         .and_time(default_time);
         let dt_utc=parsed_date.and_utc();
         //let dt_localtimezone : DateTime<Local> = dt_utc.with_timezone(&Local);
-
         temp_task.due_date=Some(dt_utc);
     }else{
         temp_task.due_date=None;
@@ -321,37 +326,34 @@ fn command_add(global_tasks:&mut TaskList,data:String,date:String,global_datafil
 /// Removes a Task in TaskList by Index
 fn command_remove(global_tasks:&mut TaskList,mut index:usize,global_datafilepath:String)->Result<(),String>{
     index=index.overflowing_sub(1).0;//prevent panic, handle elegantly later
-    match global_tasks.delete_task(index){
-        Ok(_)=>{
-            let _ = save_tltofile(global_datafilepath, global_tasks.clone());
-            return Ok(())
-        },
-        Err(_)=>{return Err("Invalid REMOVE command please try again.".to_string())}
+    if let Ok(_) = global_tasks.delete_task(index) {
+        let _ = save_tltofile(global_datafilepath, global_tasks.clone());
+        return Ok(())
+    }else{
+        return Err("Invalid REMOVE command please try again.".to_string())
     }
 }
 
 /// Completes a Task in TaskList by Index
 fn command_complete(global_tasks:&mut TaskList,mut index:usize,global_datafilepath:String)->Result<(),String>{
     index=index.overflowing_sub(1).0;//prevent panic, handle elegantly later
-    match global_tasks.toggle_completed_task(index) {
-        Ok(_)=>{
-            // this must run before the save_tltofile
-            match global_tasks.tasks[index].completed{
-                true=>global_tasks.tasks[index].completed_date=Some(Utc::now()),
-                false=>{}
+    if let Ok(_) = global_tasks.toggle_completed_task(index){
+        // this must run before the save_tltofile
+        match global_tasks.tasks[index].completed{
+            true=>global_tasks.tasks[index].completed_date=Some(Utc::now()),
+            false=>{}
+        }
+        match save_tltofile(global_datafilepath, global_tasks.clone()) {
+            Ok(value)=>Some(value),
+            Err(_)=>{
+                eprintln!("Complete Command was unable to save to file.");
+                None
             }
-
-            match save_tltofile(global_datafilepath, global_tasks.clone()) {
-                Ok(value)=>Some(value),
-                Err(_)=>{
-                    eprintln!("Complete Command was unable to save to file.");
-                    None
-                }
-            };
-            return Ok(())
-        },
-        Err(_)=>{return Err("Invalid COMPLETE command please try again.".to_string())}
-    }    
+        };
+        return Ok(())
+    }else{
+        return Err("Invalid COMPLETE command please try again.".to_string())
+    }  
 }
 
 /// Ends the process and exits to terminal
@@ -379,7 +381,7 @@ fn show_welcome_msg(){
 }
 
 /// Parses user input into command and arguments
-fn parse_input(input: &str) -> (String, Vec<String>){
+fn parse_command_input(input: &str) -> (String, Vec<String>){
     let mut parts = input.splitn(2, char::is_whitespace);
 
     // Parse command
@@ -447,7 +449,7 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList,global_datafilepath:St
 
     loop{
         let input = read_input_line().trim().to_string();
-        let (command,arguments) = parse_input(&input);
+        let (command,arguments) = parse_command_input(&input);
         
         let command_enum=match TASKCOM::from_str(command.to_uppercase().as_str()).ok(){
             Some(t)=>t,
@@ -469,7 +471,7 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList,global_datafilepath:St
             Ok(_)=>{},
             Err(error)=>{     
                 //println!("Command was: {:?}",command);//debug       
-                eprintln!("Error: {} \r\n Last State: {}",error,_last_state.to_string()) // we bubble these up to here from inside the commands
+                eprintln!("Error: {} \r\nLast State: {}",error,_last_state.to_string()) // we bubble these up to here from inside the commands
             }
         }
     }
@@ -593,9 +595,7 @@ fn save_tltofile(filepath:String,tasklist:TaskList)->Result<String,Error>{
                 eprintln!("Invalid handling of new file:{new_file_error}")
         }
     }
-
-    // println!("File saved successfully."); // ? debug
-    Ok("File saved successfully".to_string())
+    Ok("File saved successfully.".to_string())
 }
 
 /// Non-existing file save
