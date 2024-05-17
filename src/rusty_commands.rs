@@ -1,4 +1,7 @@
 use std::collections::HashMap;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::path::Path;
 use chrono::{NaiveDate, NaiveTime, Utc};
 
 use crate::rusty_tasks::*;
@@ -142,4 +145,99 @@ pub fn command_complete(global_tasks:&mut TaskList,mut index:usize,global_datafi
 /// Ends the process and exits to terminal
 pub fn command_exit(){
     std::process::exit(0);
+}
+
+/// Parses user input into command and arguments
+pub fn parse_input_commands(input: &str) -> (String, Vec<String>){
+    let mut parts = input.splitn(2, char::is_whitespace);
+
+    // Parse command
+    let command = parts.next().unwrap_or("").to_lowercase();
+
+    // Parse arguments
+    let arguments:Vec<String> = match parts.next() {
+        Some(args)=>args.split(",").map(|arg| arg.trim().to_string()).collect(),
+        None=>vec![String::from("")]// requires string inside or else there will be no "arguments[0]"
+    };    
+
+    (command, arguments)
+}
+
+/// Converts command struct into function calls to run command
+pub fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskList,global_datafilepath:String)->Result<(),String>{
+    match command{
+        TASKCOM::Help=>{
+            let help = match command_help(arguments.get(0).map(|s| s.trim().to_string())){
+                Ok(text)=>{text},
+                Err(error)=>{error}
+            };
+            println!("{}",help);
+            Ok(())
+        },
+        TASKCOM::List=>Ok(command_list(global_tasks)),
+        TASKCOM::Add=>{
+            if arguments.len()>1{
+                command_add(global_tasks,arguments[0].to_string(), arguments[1].to_string(),global_datafilepath)?;
+            }else{
+                command_add(global_tasks,arguments[0].to_string(), "".to_string(),global_datafilepath)?;
+            }
+            command_list(global_tasks);
+            Ok(())
+        },
+        TASKCOM::Remove=>{
+            let index=match arguments[0].parse::<usize>() {
+                Ok(index)=>{index},
+                Err(_e)=>{return Err("Invalid REMOVE command please try again.".to_string())}
+            };
+            command_remove(global_tasks,index,global_datafilepath)?;
+            command_list(global_tasks);
+            Ok(())
+        },
+        TASKCOM::Complete=>{
+            let index=match arguments[0].parse::<usize>() {
+                Ok(index)=>{index},
+                Err(_e)=>{return Err("Invalid COMPLETE command please try again.".to_string())}
+            };
+            command_complete(global_tasks,index,global_datafilepath)?;
+            command_list(global_tasks);
+            Ok(())
+        },
+        TASKCOM::Exit=>Ok(command_exit()),
+        TASKCOM::Unknown=> Err("Invalid command. Try 'help' for a list of commands.".to_string())
+    }
+}
+
+/// allows user to load a tasklist file
+pub fn command_loadfile(global_datafilepath:&mut String,filepath:String)->Result<(),Error>{
+    // validate shape of filepath is a filepath
+    let validate_filepath = Path::new(&filepath).parent();
+    // validate the filepath exists
+    match validate_filepath {
+        Some(_)=>{},
+        None=>{return Err(Error::new(ErrorKind::Other, "Invalid filepath provided for command_saveas."))}
+    }
+    set_defaultfilepath(global_datafilepath, filepath.clone())?;
+    load_tlfromfile(global_datafilepath.clone());
+    Ok(())
+}
+
+/// allows user to save a tasklist file
+pub fn command_savefile_as(global_tasks:&mut TaskList,global_datafilepath:&mut String,filepath:String)->Result<(),Error>{
+    // validate shape of filepath is a filepath
+    let validate_filepath = Path::new(&filepath).parent();
+    // validate the filepath exists
+    match validate_filepath {
+        Some(_)=>{},
+        None=>{return Err(Error::new(ErrorKind::Other, "Invalid filepath provided for command_saveas."))}
+    }
+    // save to filepath
+    let _ = save_tltofile(filepath.clone(), global_tasks.clone())?;
+
+    // re-load from the filepath we saved to
+    load_tlfromfile(filepath.clone());
+
+    // set default filepath just like command_load
+    set_defaultfilepath(global_datafilepath, filepath.clone())?;
+
+    Ok(())
 }

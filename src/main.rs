@@ -2,16 +2,20 @@ use std::{io::{self, Write}, str::FromStr};
 #[allow(unused_imports)]
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 
+
 pub mod rusty_tasks;
 pub mod rusty_commands;
 pub mod rusty_files;
 
-use crate::rusty_tasks::*;
-use crate::rusty_commands::*;
-use crate::rusty_files::*;
+use rusty_tasks::*;
+use rusty_commands::*;
+use rusty_files::load_tlfromfile;
 
 /// TODO: 
 /// Timezone fix
+/// Add SaveAs and Load commands
+/// SaveAs should allow saving under different filenames
+/// Load command should set the default file to open to the path/file selected
 
 fn get_localtime()->DateTime<Local> {
     let utc_time: DateTime<Utc> = Utc::now();
@@ -51,66 +55,6 @@ fn show_welcome_msg(){
 
 }
 
-/// Parses user input into command and arguments
-fn parse_command_input(input: &str) -> (String, Vec<String>){
-    let mut parts = input.splitn(2, char::is_whitespace);
-
-    // Parse command
-    let command = parts.next().unwrap_or("").to_lowercase();
-
-    // Parse arguments
-    let arguments:Vec<String> = match parts.next() {
-        Some(args)=>args.split(",").map(|arg| arg.trim().to_string()).collect(),
-        None=>vec![String::from("")]// requires string inside or else there will be no "arguments[0]"
-    };    
-
-    (command, arguments)
-}
-
-/// Converts command struct into function calls to run command
-fn handle_command(command:TASKCOM,arguments:Vec<String>,global_tasks:&mut TaskList,global_datafilepath:String)->Result<(),String>{
-    match command{
-        TASKCOM::Help=>{
-            let help = match command_help(arguments.get(0).map(|s| s.trim().to_string())){
-                Ok(text)=>{text},
-                Err(error)=>{error}
-            };
-            println!("{}",help);
-            Ok(())
-        },
-        TASKCOM::List=>Ok(command_list(global_tasks)),
-        TASKCOM::Add=>{
-            if arguments.len()>1{
-                command_add(global_tasks,arguments[0].to_string(), arguments[1].to_string(),global_datafilepath)?;
-            }else{
-                command_add(global_tasks,arguments[0].to_string(), "".to_string(),global_datafilepath)?;
-            }
-            command_list(global_tasks);
-            Ok(())
-        },
-        TASKCOM::Remove=>{
-            let index=match arguments[0].parse::<usize>() {
-                Ok(index)=>{index},
-                Err(_e)=>{return Err("Invalid REMOVE command please try again.".to_string())}
-            };
-            command_remove(global_tasks,index,global_datafilepath)?;
-            command_list(global_tasks);
-            Ok(())
-        },
-        TASKCOM::Complete=>{
-            let index=match arguments[0].parse::<usize>() {
-                Ok(index)=>{index},
-                Err(_e)=>{return Err("Invalid COMPLETE command please try again.".to_string())}
-            };
-            command_complete(global_tasks,index,global_datafilepath)?;
-            command_list(global_tasks);
-            Ok(())
-        },
-        TASKCOM::Exit=>Ok(command_exit()),
-        TASKCOM::Unknown=> Err("Invalid command. Try 'help' for a list of commands.".to_string())
-    }
-}
-
 /// Starts the terminal input loop, receives, parses, and initiates commands.
 fn run_tasklist(first_run:bool,global_tasks:&mut TaskList,global_datafilepath:String){    
     if first_run {
@@ -120,7 +64,7 @@ fn run_tasklist(first_run:bool,global_tasks:&mut TaskList,global_datafilepath:St
 
     loop{
         let input = read_input_line().trim().to_string();
-        let (command,arguments) = parse_command_input(&input);
+        let (command,arguments) = parse_input_commands(&input);
         
         let command_enum=match TASKCOM::from_str(command.to_uppercase().as_str()).ok(){
             Some(t)=>t,
@@ -161,6 +105,9 @@ fn main() {
 /// !Start of the testing module for this app
 #[cfg(test)]
 mod tests {
+
+    use crate::rusty_files::*;
+
     use super::*;
     use rand::Rng;//import for tests
 

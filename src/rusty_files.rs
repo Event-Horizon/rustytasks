@@ -110,3 +110,26 @@ pub fn load_tlfromfile(path:String)->TaskList{
     }
     convert_stringtotl(data)
 }
+
+pub fn set_defaultfilepath(global_datafilepath:&mut String, filepath:String)->Result<(),Error>{
+    // validate filepath shapes
+    let validate_path = Path::new(&filepath).parent();
+
+    match validate_path {
+        Some(_)=>{},
+        None=>{return Err(Error::new(ErrorKind::Other, "Invalid filepath provided for set_defaultfilepath."))}
+    }
+    
+    // set the reference string to filepath string after validation
+    // This does not copy the String data; instead, it transfers ownership of filepath to the original String that global_datafilepath points to.
+    *global_datafilepath=filepath;
+
+    Ok(())
+}
+
+pub fn reset_defaultfilepath(global_datafilepath:&mut String){
+    let default_filepath = "data/tasklist.md";
+
+    // discard the error because there shouldn't be one as long as devs don't mess  up the default_filepath
+    set_defaultfilepath(global_datafilepath, default_filepath.to_string()).ok();
+}
